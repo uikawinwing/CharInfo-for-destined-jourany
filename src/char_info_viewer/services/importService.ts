@@ -76,7 +76,10 @@ function parseEffectMap(effectVal: unknown): Record<string, string> {
   return { 描述: text };
 }
 
-function arrayToMap(arr: unknown, type: 'skill' | 'equip' | 'divinity'): Record<string, Record<string, any>> {
+function arrayToMap(
+  arr: unknown,
+  type: 'skill' | 'equip' | 'divinity' | 'backpack',
+): Record<string, Record<string, any>> {
   const map: Record<string, Record<string, any>> = {};
   if (!Array.isArray(arr)) return map;
 
@@ -92,7 +95,7 @@ function arrayToMap(arr: unknown, type: 'skill' | 'equip' | 'divinity'): Record<
 
     const tags = processed.标签 ?? processed.標籤;
     if (tags) processed.标签 = ensureArray(tags);
-    else if (type === 'skill' || type === 'equip') processed.标签 = [];
+    else if (type === 'skill' || type === 'equip' || type === 'backpack') processed.标签 = [];
     delete processed.標籤;
 
     if (type !== 'divinity') {
@@ -109,10 +112,84 @@ function arrayToMap(arr: unknown, type: 'skill' | 'equip' | 'divinity'): Record<
       processed.类型 = processed.类型 || processed.類型 || '未知';
       processed.消耗 = processed.消耗 ? ensureString(processed.消耗) : '';
       processed.描述 = processed.描述 || '';
+    } else if (type === 'backpack') {
+      const quantityRaw = processed.数量 ?? processed.數量 ?? processed.持有数量 ?? processed.持有數量 ?? 1;
+      const quantityValue = Number(quantityRaw);
+      processed.品质 = processed.品质 || processed.品質 || '未知';
+      processed.类型 = processed.分类 || processed.分類 || processed.类型 || processed.類型 || '未知';
+      processed.数量 = Number.isFinite(quantityValue) && quantityValue > 0 ? quantityValue : 1;
+      processed.描述 = processed.描述 || '';
     }
 
     map[itemName] = processed;
   });
+
+  return map;
+}
+
+function mergeNamedMaps(...maps: Array<Record<string, Record<string, any>>>): Record<string, Record<string, any>> {
+  const merged: Record<string, Record<string, any>> = {};
+
+  maps.forEach(map => {
+    Object.entries(map).forEach(([name, value]) => {
+      const existing = merged[name];
+      if (!existing) {
+        merged[name] = { ...value };
+        return;
+      }
+
+      const existingQty = Number(existing.数量);
+      const nextQty = Number(value.数量);
+      const mergedQty =
+        (Number.isFinite(existingQty) ? existingQty : 0) + (Number.isFinite(nextQty) ? nextQty : 0);
+
+      merged[name] = {
+        ...existing,
+        ...value,
+        标签: Array.from(new Set([...ensureArray(existing.标签), ...ensureArray(value.标签)])),
+        效果: {
+          ...(existing.效果 && typeof existing.效果 === 'object' ? existing.效果 : {}),
+          ...(value.效果 && typeof value.效果 === 'object' ? value.效果 : {}),
+        },
+        数量: mergedQty > 0 ? mergedQty : value.数量 ?? existing.数量 ?? 1,
+      };
+    });
+  });
+
+  return merged;
+}
+
+function statusEffectsToMap(input: unknown): Record<string, Record<string, any>> {
+  const map: Record<string, Record<string, any>> = {};
+
+  const normalizeEffect = (effectName: string, raw: unknown) => {
+    if (!effectName.trim() || !raw || typeof raw !== 'object') return;
+    const effect = raw as Record<string, unknown>;
+    const layerValue = Number(effect.层数 ?? 1);
+    map[effectName] = {
+      类型: ensureString(effect.类型).trim() || '特殊',
+      效果: ensureString(effect.效果).trim(),
+      层数: Number.isFinite(layerValue) && layerValue > 0 ? layerValue : 1,
+      剩余时间: ensureString(effect.剩余时间).trim(),
+      来源: ensureString(effect.来源).trim(),
+    };
+  };
+
+  if (Array.isArray(input)) {
+    input.forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      const anyItem = item as Record<string, unknown>;
+      const effectName = ensureString(anyItem.名称 || anyItem.效果名称 || anyItem.name).trim();
+      normalizeEffect(effectName, anyItem);
+    });
+    return map;
+  }
+
+  if (input && typeof input === 'object') {
+    Object.entries(input as Record<string, unknown>).forEach(([effectName, effectValue]) => {
+      normalizeEffect(effectName, effectValue);
+    });
+  }
 
   return map;
 }
@@ -126,6 +203,13 @@ export async function importToMvuVariables(data: CharacterData): Promise<void> {
   const normalizedData = normalizeCharacterDataKeys(data);
   const charName = normalizedData.姓名 || 'Unknown';
   const targetScope: VariableScope = { type: 'message', message_id: 'latest' };
+
+  const backpack = mergeNamedMaps(
+    arrayToMap(normalizedData.背包, 'backpack'),
+    arrayToMap(normalizedData.道具, 'backpack'),
+    arrayToMap(normalizedData.物品, 'backpack'),
+    arrayToMap(normalizedData.特殊物品, 'backpack'),
+  );
 
   const mvuData = {
     在场: true,
@@ -145,6 +229,8 @@ export async function importToMvuVariables(data: CharacterData): Promise<void> {
       智力: parseAttributeValue(normalizedData.属性?.智力),
       精神: parseAttributeValue(normalizedData.属性?.精神),
     },
+    状态效果: statusEffectsToMap(normalizedData.状态效果),
+    背包: backpack,
     技能: arrayToMap(normalizedData.技能, 'skill'),
     装备: arrayToMap(normalizedData.装备, 'equip'),
     登神长阶: {
@@ -167,45 +253,26 @@ export async function importToMvuVariables(data: CharacterData): Promise<void> {
     背景故事: normalizedData.背景故事 || '',
   };
 
-  let prefix = 'stat_data.';
   let currentVars: Record<string, any> | null = null;
 
   try {
     currentVars = await api.getVariables(targetScope);
-    if (currentVars?.命定系统) prefix = '';
-    else if (currentVars?.stat_data) prefix = 'stat_data.';
   } catch {
-    prefix = 'stat_data.';
+    currentVars = null;
   }
 
   const keepIfPresent = (val: unknown) => (val === undefined || val === null ? undefined : val);
+  const currentCharacter = currentVars?.stat_data?.关系列表?.[charName];
 
-  const candidates: Array<Record<string, any> | undefined> = [];
-  if (prefix === 'stat_data.') {
-    candidates.push(currentVars?.stat_data?.命定系统?.关系列表?.[charName]);
-    candidates.push(currentVars?.stat_data?.[charName]);
-    candidates.push(currentVars?.stat_data?.ThatNPC);
-  } else {
-    candidates.push(currentVars?.命定系统?.关系列表?.[charName]);
-  }
-
-  let preservedFavor: unknown = undefined;
-  let preservedHeart: unknown = undefined;
-  for (const entry of candidates) {
-    if (!entry) continue;
-    if (preservedFavor === undefined) preservedFavor = keepIfPresent(entry?.好感度);
-    if (preservedHeart === undefined) preservedHeart = keepIfPresent(entry?.心里话);
-  }
+  const preservedFavor = keepIfPresent(currentCharacter?.好感度);
+  const preservedHeart = keepIfPresent(currentCharacter?.心里话);
 
   if (preservedFavor !== undefined) (mvuData as any).好感度 = preservedFavor;
   if (preservedHeart !== undefined) (mvuData as any).心里话 = preservedHeart;
 
-  const updatePayload: Record<string, any> = {};
-  if (prefix === 'stat_data.') {
-    updatePayload.stat_data = { 命定系统: { 关系列表: { [charName]: mvuData } } };
-  } else {
-    updatePayload.命定系统 = { 关系列表: { [charName]: mvuData } };
-  }
+  const updatePayload: Record<string, any> = {
+    stat_data: { 关系列表: { [charName]: mvuData } },
+  };
 
   await api.insertOrAssignVariables(updatePayload, targetScope);
 }

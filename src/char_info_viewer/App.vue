@@ -328,6 +328,33 @@
               </template>
             </template>
 
+            <template v-else-if="activeTab === 'statusEffects'">
+              <article
+                v-for="(item, index) in statusEffects"
+                :key="`status-effect-${index}-${itemName(item)}`"
+                class="card"
+              >
+                <div class="card-header">
+                  <h3 class="card-title">{{ itemName(item) }}</h3>
+                  <span v-if="statusEffectType(item)" class="card-subtitle">{{ statusEffectType(item) }}</span>
+                </div>
+                <div class="card-body">
+                  <p v-if="statusEffectDescription(item)">
+                    <span class="card-label">效果:</span>{{ statusEffectDescription(item) }}
+                  </p>
+                  <p v-if="statusEffectLayers(item)">
+                    <span class="card-label">层数:</span>{{ statusEffectLayers(item) }}
+                  </p>
+                  <p v-if="statusEffectDuration(item)">
+                    <span class="card-label">剩余时间:</span>{{ statusEffectDuration(item) }}
+                  </p>
+                  <p v-if="statusEffectSource(item)">
+                    <span class="card-label">来源:</span>{{ statusEffectSource(item) }}
+                  </p>
+                </div>
+              </article>
+            </template>
+
             <template v-else>
               <div class="story">{{ backstoryText || '暂无故事' }}</div>
             </template>
@@ -351,15 +378,20 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
 
-import { buildAttributeWarningMap } from './services/attributeWarning';
-import { getSmartArray, hasArrayContent, hasText, parseAttributeValue } from './services/common';
+import {
+  ATTRIBUTE_KEYS,
+  buildAttributeWarningMap,
+  getAttributeRawValue,
+  splitAttributeFormula,
+} from './services/attributeWarning';
+import { getSmartArray, hasArrayContent, hasText } from './services/common';
 import { importToMvuVariables, saveToChatWorldbook } from './services/importService';
 import { createParticleEngine, type ParticleEngine } from './services/particleEngine';
 import { applyTheme, resolveTheme } from './services/themeService';
 import { parseCharacterYaml } from './services/yamlParser';
 import type { CharacterData, FriendlyYamlError, ThemeResolved } from './types';
 
-type TabKey = 'profile' | 'skills' | 'equipment' | 'inventory' | 'divinity' | 'backstory';
+type TabKey = 'profile' | 'skills' | 'equipment' | 'inventory' | 'divinity' | 'backstory' | 'statusEffects';
 
 type ViewTab = {
   key: TabKey;
@@ -378,9 +410,10 @@ const tabOrder: ViewTab[] = [
   { key: 'profile', label: '档案' },
   { key: 'skills', label: '技能' },
   { key: 'equipment', label: '装备' },
-  { key: 'inventory', label: '物品' },
+  { key: 'inventory', label: '背包' },
   { key: 'divinity', label: '登神长阶' },
   { key: 'backstory', label: '背景故事' },
+  { key: 'statusEffects', label: '状态效果' },
 ];
 
 const sheetData = ref<CharacterData | null>(null);
@@ -489,49 +522,12 @@ const resourceBoxes = computed<ResourceBox[]>(() => {
 
 const attributeFormulaState = ref<Record<string, boolean>>({});
 
-function parseAttributeDisplay(rawValue: unknown): { total: string; formula: string } {
-  if (rawValue === undefined || rawValue === null) return { total: '0', formula: '' };
-
-  const text = String(rawValue).trim();
-  if (!text) return { total: '0', formula: '' };
-
-  if (!text.includes('=')) {
-    return { total: String(parseAttributeValue(text)), formula: '' };
-  }
-
-  const parts = text.split('=');
-  const formula = parts.slice(0, -1).join('=').trim();
-  const totalPart = parts[parts.length - 1]?.trim() || '';
-
-  return {
-    total: totalPart || String(parseAttributeValue(text)),
-    formula,
-  };
-}
-
-const attributeAliasMap: Record<string, string[]> = {
-  力量: ['力量'],
-  敏捷: ['敏捷'],
-  体质: ['体质', '体质'],
-  智力: ['智力'],
-  精神: ['精神'],
-};
-
-function getAttributeRawValue(attrObj: Record<string, unknown>, key: string): unknown {
-  const aliases = attributeAliasMap[key] || [key];
-  for (const alias of aliases) {
-    const value = attrObj[alias];
-    if (value !== undefined && value !== null) return value;
-  }
-  return undefined;
-}
-
 const attributes = computed(() => {
   const attrObj = (pickField(sheetData.value, '属性', '属性') || {}) as Record<string, unknown>;
   const warningMap = buildAttributeWarningMap(attrObj, pickField(sheetData.value, '等级'));
 
-  return ['力量', '敏捷', '体质', '智力', '精神'].map(key => {
-    const parsed = parseAttributeDisplay(getAttributeRawValue(attrObj, key));
+  return ATTRIBUTE_KEYS.map(key => {
+    const parsed = splitAttributeFormula(getAttributeRawValue(attrObj, key));
     const warningState = warningMap[key as keyof typeof warningMap];
 
     return {
@@ -548,8 +544,10 @@ const attributes = computed(() => {
 });
 
 function toggleAttributeFormula(key: string) {
+  if (!ATTRIBUTE_KEYS.includes(key as (typeof ATTRIBUTE_KEYS)[number])) return;
+
   const attrObj = (pickField(sheetData.value, '属性', '属性') || {}) as Record<string, unknown>;
-  const parsed = parseAttributeDisplay(getAttributeRawValue(attrObj, key));
+  const parsed = splitAttributeFormula(getAttributeRawValue(attrObj, key as (typeof ATTRIBUTE_KEYS)[number]));
   if (!parsed.formula) return;
 
   attributeFormulaState.value = {
@@ -561,6 +559,21 @@ function toggleAttributeFormula(key: string) {
 function asObjectArray(input: unknown): ItemObject[] {
   if (!Array.isArray(input)) return [];
   return input.filter(item => item && typeof item === 'object') as ItemObject[];
+}
+
+function asNamedObjectArray(input: unknown): ItemObject[] {
+  if (Array.isArray(input)) return asObjectArray(input);
+  if (!input || typeof input !== 'object') return [];
+
+  return Object.entries(input as Record<string, unknown>)
+    .filter(([, value]) => value && typeof value === 'object')
+    .map(([name, value]) => {
+      const item = value as Record<string, unknown>;
+      return {
+        ...item,
+        名称: textFromUnknown(item.名称) || name,
+      } as ItemObject;
+    });
 }
 
 type EffectEntry = {
@@ -727,17 +740,41 @@ function lawActive(item: ItemObject): string {
   return textFromUnknown(item?.主动效果);
 }
 
-const skills = computed(() => asObjectArray(sheetData.value?.技能));
-const equipments = computed(() => asObjectArray(sheetData.value?.装备));
+function statusEffectType(item: ItemObject): string {
+  return textFromUnknown(item?.类型);
+}
+
+function statusEffectDescription(item: ItemObject): string {
+  return textFromUnknown(item?.效果);
+}
+
+function statusEffectLayers(item: ItemObject): string {
+  const value = textFromUnknown(item?.层数);
+  return value ? `${value}层` : '';
+}
+
+function statusEffectDuration(item: ItemObject): string {
+  return textFromUnknown(item?.剩余时间);
+}
+
+function statusEffectSource(item: ItemObject): string {
+  return textFromUnknown(item?.来源);
+}
+
+const skills = computed(() => asNamedObjectArray(sheetData.value?.技能));
+const equipments = computed(() => asNamedObjectArray(sheetData.value?.装备));
 
 const inventorySections = computed(() => {
   const all = [
-    { key: 'props', title: '道具', items: asObjectArray(sheetData.value?.道具) },
-    { key: 'special', title: '特殊物品', items: asObjectArray(sheetData.value?.特殊物品) },
-    { key: 'items', title: '物品', items: asObjectArray(sheetData.value?.物品) },
+    { key: 'backpack', title: '背包', items: asNamedObjectArray(sheetData.value?.背包) },
+    { key: 'props', title: '道具', items: asNamedObjectArray(sheetData.value?.道具) },
+    { key: 'special', title: '特殊物品', items: asNamedObjectArray(sheetData.value?.特殊物品) },
+    { key: 'items', title: '物品', items: asNamedObjectArray(sheetData.value?.物品) },
   ];
   return all.filter(section => section.items.length > 0);
 });
+
+const statusEffects = computed(() => asNamedObjectArray(sheetData.value?.状态效果));
 
 const divinityRoot = computed(() => {
   const raw = sheetData.value?.登神长阶;
@@ -765,9 +802,9 @@ const divinityKingdom = computed(() => {
   };
 });
 
-const divinityElements = computed(() => asObjectArray(divinityRoot.value?.要素 || sheetData.value?.要素));
-const divinityPowers = computed(() => asObjectArray(divinityRoot.value?.权能 || sheetData.value?.权能));
-const divinityLaws = computed(() => asObjectArray(divinityRoot.value?.法则 || sheetData.value?.法则));
+const divinityElements = computed(() => asNamedObjectArray(divinityRoot.value?.要素 || sheetData.value?.要素));
+const divinityPowers = computed(() => asNamedObjectArray(divinityRoot.value?.权能 || sheetData.value?.权能));
+const divinityLaws = computed(() => asNamedObjectArray(divinityRoot.value?.法则 || sheetData.value?.法则));
 
 const hasInventory = computed(() => inventorySections.value.length > 0);
 const hasDivinity = computed(() => {
@@ -779,6 +816,7 @@ const hasDivinity = computed(() => {
     hasArrayContent(divinityLaws.value)
   );
 });
+const hasStatusEffects = computed(() => statusEffects.value.length > 0);
 
 const visibleTabs = computed<ViewTab[]>(() => {
   return tabOrder.filter(tab => {
@@ -788,12 +826,13 @@ const visibleTabs = computed<ViewTab[]>(() => {
     if (tab.key === 'inventory') return hasInventory.value;
     if (tab.key === 'divinity') return hasDivinity.value;
     if (tab.key === 'backstory') return hasText(backstoryText.value);
+    if (tab.key === 'statusEffects') return hasStatusEffects.value;
     return false;
   });
 });
 
 watchEffect(() => {
-  if (!visibleTabs.value.some(tab => tab.key === activeTab.value)) {
+  if (!visibleTabs.value.some((tab: ViewTab) => tab.key === activeTab.value)) {
     activeTab.value = visibleTabs.value[0]?.key || 'profile';
   }
 });
