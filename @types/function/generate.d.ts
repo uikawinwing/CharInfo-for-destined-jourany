@@ -1,11 +1,4 @@
 /**
- * 获取代理预设名称列表
- *
- * @returns 代理预设名称列表
- */
-declare function getProxyPresetNames(): string[];
-
-/**
  * 使用酒馆当前启用的预设, 让 AI 生成一段文本.
  *
  * 该函数在执行过程中将会发送以下事件:

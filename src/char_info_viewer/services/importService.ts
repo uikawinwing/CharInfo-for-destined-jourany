@@ -1,5 +1,5 @@
 import type { CharacterData } from '../types';
-import { getSmartArray, parseAttributeValue } from './common';
+import { getSmartArray, normalizeDisplayText, parseAttributeValue } from './common';
 import { normalizeCharacterDataKeys } from './yamlParser';
 
 type VariableScope = { type: 'message'; message_id: 'latest' };
@@ -18,11 +18,33 @@ function getApi(): TavernApiLike {
 
 function ensureString(val: unknown): string {
   if (Array.isArray(val)) return val.join(', ');
-  return val ? String(val) : '';
+  return val ? normalizeDisplayText(val) : '';
 }
 
 function ensureArray(val: unknown): string[] {
   return getSmartArray(val);
+}
+
+function parseNamedEffectLine(line: string): readonly [string, string] | null {
+  const normalized = normalizeDisplayText(line);
+  if (!normalized) return null;
+
+  const bracketMatch = normalized.match(/^\[([^\]]+)\]\s*[：:]\s*(.*)$/);
+  if (bracketMatch) {
+    const key = normalizeDisplayText(bracketMatch[1]);
+    const value = normalizeDisplayText(bracketMatch[2]);
+    if (key && value) return [key, value] as const;
+    return null;
+  }
+
+  const splitIndex = normalized.search(/[：:]/);
+  if (splitIndex <= 0) return null;
+
+  const key = normalizeDisplayText(normalized.slice(0, splitIndex));
+  const value = normalizeDisplayText(normalized.slice(splitIndex + 1));
+  if (!key || !value) return null;
+
+  return [key, value] as const;
 }
 
 function parseEffectMap(effectVal: unknown): Record<string, string> {
@@ -30,7 +52,7 @@ function parseEffectMap(effectVal: unknown): Record<string, string> {
     const effectObj = effectVal as Record<string, unknown>;
     return Object.fromEntries(
       Object.entries(effectObj)
-        .map(([key, value]) => [String(key).trim(), ensureString(value).trim()] as const)
+        .map(([key, value]) => [normalizeDisplayText(key), ensureString(value).trim()] as const)
         .filter(([key, value]) => key.length > 0 && value.length > 0),
     );
   }
@@ -47,22 +69,11 @@ function parseEffectMap(effectVal: unknown): Record<string, string> {
   const remains: string[] = [];
 
   lines.forEach(line => {
-    const bracketMatch = line.match(/^\[([^\]]+)\]\s*[：:]\s*(.*)$/);
-    if (bracketMatch) {
-      const key = String(bracketMatch[1] || '').trim();
-      const value = String(bracketMatch[2] || '').trim();
-      if (key && value) effectMap[key] = value;
+    const named = parseNamedEffectLine(line);
+    if (named) {
+      const [key, value] = named;
+      effectMap[key] = value;
       return;
-    }
-
-    const plainMatch = line.match(/^([^[\]：:]+?)\s*[：:]\s*(.+)$/);
-    if (plainMatch) {
-      const key = String(plainMatch[1] || '').trim();
-      const value = String(plainMatch[2] || '').trim();
-      if (key && value) {
-        effectMap[key] = value;
-        return;
-      }
     }
 
     remains.push(line);
@@ -140,8 +151,7 @@ function mergeNamedMaps(...maps: Array<Record<string, Record<string, any>>>): Re
 
       const existingQty = Number(existing.数量);
       const nextQty = Number(value.数量);
-      const mergedQty =
-        (Number.isFinite(existingQty) ? existingQty : 0) + (Number.isFinite(nextQty) ? nextQty : 0);
+      const mergedQty = (Number.isFinite(existingQty) ? existingQty : 0) + (Number.isFinite(nextQty) ? nextQty : 0);
 
       merged[name] = {
         ...existing,
@@ -151,7 +161,7 @@ function mergeNamedMaps(...maps: Array<Record<string, Record<string, any>>>): Re
           ...(existing.效果 && typeof existing.效果 === 'object' ? existing.效果 : {}),
           ...(value.效果 && typeof value.效果 === 'object' ? value.效果 : {}),
         },
-        数量: mergedQty > 0 ? mergedQty : value.数量 ?? existing.数量 ?? 1,
+        数量: mergedQty > 0 ? mergedQty : (value.数量 ?? existing.数量 ?? 1),
       };
     });
   });

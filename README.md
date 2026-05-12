@@ -1,241 +1,104 @@
-# 角色查看器 3.0 项目说明
-Codex写的，沒看
+# tavern_helper_template
 
-## 1. 项目在做什么
+酒馆助手编写前端界面或脚本的模板.
 
-本项目当前主线是一个基于 Vue 3 的角色卡前端界面：**角色查看器 3.0**
+## 使用方法
 
-核心能力：
+无论哪种方式, 请阅读[教程文档](https://stagedog.github.io/青空莉/工具经验/实时编写前端界面或脚本/)来了解如何使用.
 
-1. 从 YAML 文本读取角色数据并渲染 UI
-2. 按种族和生命层级应用主题色
-3. 展示属性、档案、技能、装备、物品、登神长阶、背景故事
-4. 提供粒子背景特效
-5. 提供导入能力：
-   - 导入到 MVU 变量
-   - 保存到聊天世界书
-6. 当 YAML 解析失败时，给出可读的错误定位和排查提示
+### 仅本地使用
 
-当前主要开发路径：
+你可以点击网页右上角的绿色 `Code` 按钮-`Download ZIP` 下载本模板的压缩包来只在本地使用
 
-- `src/角色查看器/3.0/App.vue`
-- `src/角色查看器/3.0/services/yamlParser.ts`
-- `src/角色查看器/3.0/services/importService.ts`
----
-## 2. 快速开始
-### 2.1 环境要求
+### 作为 Github 仓库
 
-- Node.js 18+
-- pnpm
-### 2.2 安装依赖
+你可以通过以下两种方式中的一种来创建仓库:
+
+- 点击网页右上角绿色 `Use this template` 按钮;
+- 或者点击网页右上角的 `fork` 按钮, 但需要手动去 fork 所得仓库的 `Actions` 页面启用自动工作流.
+
+在创建好仓库后, 你需要配置工作流的权限: 前往仓库 `Settings -> Actions -> General` 中将 `Workflow permissions` 设置为 `Read and write permissions`, 并勾选 `Allow GitHub Actions to create and approve pull requests`
+
+## 如果只在本地使用
+
+这意味着:
+
+- 你将不能利用 jsdelivr 实现前端界面或脚本的自动更新;
+- 也不能享受本模板提供的自动打包、自动更新功能:
+  - 上传代码后, 自动打包 `src` 文件夹中的代码到 `dist` 文件夹中;
+  - 自动更新成最新的编写模板, 自动更新酒馆和酒馆助手的参考文件……
+
+但你本地依旧能很方便地使用这个模板.
+
+## 如果创建为新仓库
+
+在创建好仓库后, 你可以把仓库网址发给 AI, 问 AI 该**怎么启用 `core.symlinks`**, 然后克隆到本地使用; 或者, 你可以游玩 [Learn Git Branching](https://learngitbranching.js.org/?locale=zh_CN) 来学习 git 分支和合并.
+
+#### `.vscode/launch.json` 文件
+
+由于 `.vscode/launch.json` 文件中填写了你的酒馆地址, 你可能需要运行命令来忽略这个更改, 避免你的云酒馆 ip 地址暴露:
 
 ```bash
-pnpm install
+git update-index --skip-worktree .vscode/launch.json
 ```
-### 2.3 开发模式
+
+### 示例文件夹
+
+请不要删除`示例`文件夹, AI 需要参考其中的代码; 但你可以在 `webpack.config.ts` 中将 54 行左右的 `{示例,src}/` 改为 `src/` 来避免打包它们.
+
+#### 利用 jsdelivr 实现前端界面或脚本的自动更新
+
+由于你所制作的前端界面或脚本将被打包在 github 仓库中, 你将能用 jsdelivr 链接来访问它们, 而这个链接可以在前端界面或脚本中直接使用.
+
+由此你就可以为用户创建这样一个自动更新的前端界面:
+
+```html
+<body>
+  <script>
+    $('body').load('https://testingcf.jsdelivr.net/gh/lolo-desu/lolocard/dist/日记络络/界面/介绍页/index.html')
+  </script>
+</body>
+```
+
+或一个自动更新的脚本:
+
+```typescript
+import 'https://testingcf.jsdelivr.net/gh/StageDog/tavern_resource/dist/酒馆助手/场景感/index.js'
+```
+
+更多请见于[文档](https://stagedog.github.io/青空莉/工具经验/实时编写前端界面或脚本/进阶技巧).
+
+### 自动打包、自动更新功能
+
+本仓库在 `.github/workflows` 文件夹中设置了几个 CI 工作流来为你带来自动打包、自动更新功能, 你也可以在网页上方的 `Actions` 中手动运行它们:
+
+**`bundle.yaml`**
+
+- 自动打包 `src` 文件夹中的代码到 `dist` 文件夹中, 并自动递增版本号从而让 jsdelivr 更快更新缓存;
+- 自动将 `tavern_sync.yaml` 中[已经配置好了的角色卡、世界书或预设](https://stagedog.github.io/青空莉/工具经验/实时编写角色卡、世界书或预设/)打包成可以被酒馆导入的文件.
+
+**`bump_deps.yaml`**
+
+- 每三天一次, 自动更新第三方库依赖和酒馆助手 `@types` 文件夹.
+
+**`sync_template.yaml`**
+
+- 在你基于模板仓库创建新仓库后, 你的新仓库将不再和模板仓库有关联, 因此我设置了这个工作流用于同步模板仓库的更新 (如编程助手编写规则、MCP、slash_command.txt 文件等):
+  - 发现模板仓库更新后, 这个工作流将会自动创建一个 pull request 来同步更新, 而**你需要手动批准 pull request, 因此建议你时常查看 github 的邮件通知;**
+  - 如果模板仓库中有文件是你不想继续同步的, 可以在 `.github/.templatesyncignore` 中添加它.
+
+### 打包冲突问题
+
+为了自动更新和打包一些东西, 本项目直接打包源代码在 `dist/` 文件夹中并随仓库上传, 而这会让开发时经常出现分支冲突.
+
+为了解决这一点, 仓库在 `.gitattribute` 中设置了对于 `dist/` 文件夹中的冲突总是使用当前版本. 这不会有什么问题: 在上传后, ci 会将 `dist/` 文件夹重新打包成最新版本, 因而你上传的 `dist/` 文件夹内容如何无关紧要.
+
+为了启用这个功能, 请执行一次以下命令:
+
 ```bash
-pnpm watch
-```
-### 2.4 生产构建
-```bash
-pnpm build
-```
----
-
-## 3. 目录与职责
-### 3.1 角色查看器 3.0 目录
-
-```text
-src/角色查看器/3.0/
-├── App.vue                   # 主界面、主状态、交互与样式
-├── index.html                # 页面容器与 YAML 数据入口
-├── index.ts                  # Vue 挂载入口
-├── types.ts                  # 类型定义
-└── services/
-    ├── common.ts             # 通用工具
-    ├── yamlParser.ts         # YAML 清洗与解析、友好错误
-    ├── themeService.ts       # 主题解析与 CSS 变量写入
-    ├── particleEngine.ts     # 粒子背景引擎
-    └── importService.ts      # 导入 MVU / 世界书
+git config --global merge.ours.driver true
 ```
 
-### 3.2 关键文件说明
+## 许可证
 
-- `App.vue`
-  - 负责 UI 结构、tab 切换、属性展示、错误面板、导入按钮
-  - 负责初始化流程：读取 YAML、解析、应用主题、启动粒子
-  - 负责大部分样式（包括旗帜属性、卡片、错误提示）
-
-- `services/yamlParser.ts`
-  - 先清洗 YAML 再调用 `js-yaml` 解析
-  - 出错时返回 `line / column / cleanedLine / caretLine`，供界面提示
-
-- `services/importService.ts`
-  - 把 `CharacterData` 映射到 MVU 变量结构
-  - 支持写入聊天世界书条目
-
-- `services/themeService.ts`
-  - 根据种族与生命层级计算颜色
-  - 写入 CSS 变量 `--race-color` 与 `--tier-color`
-
-- `services/particleEngine.ts`
-  - 创建粒子动画引擎，含 `start / stop / destroy`
-  - 根据层级切换粒子模式与数量
-
----
-## 4. 运行流程
-
-```mermaid
-flowchart TD
-  A[index.html 提供 app 容器 与 data-source yaml]
-  B[index.ts 挂载 Vue App]
-  C[App.vue onMounted 初始化]
-  D[yamlParser 清洗与解析]
-  E[themeService 解析主题并写入 css 变量]
-  F[particleEngine 启动背景粒子]
-  G[渲染 tabs 与卡片内容]
-  H[importService 执行导入动作]
-
-  A --> B --> C --> D
-  D --> E --> F --> G
-  G --> H
-```
-解析失败分支：
-
-- `App.vue` 会显示错误卡片
-- 展示技术信息、定位行列、出错行和新手排查步骤
-
----
-## 5. 数据模型
-
-核心类型在 `types.ts`
-
-### 5.1 主体结构
-
-- `CharacterData`
-  - 基础字段：姓名、等级、种族、生命层级、身份、职业、性格、喜爱、外貌特质、衣物装饰、背景故事
-  - 数值字段：属性、资源
-  - 集合字段：技能、装备、道具、特殊物品、物品
-  - 登神扩展：登神长阶、神位、神国、要素、权能、法则
-
-### 5.2 解析结果
-
-- `ParseResult = ParseSuccess | ParseFailure`
-- `FriendlyYamlError` 支持：
-  - message
-  - line / column
-  - cleanedLine / originalLine / caretLine
-
-### 5.3 主题结果
-
-- `ThemeResolved`
-  - tier
-  - raceKey
-  - raceHex / tierHex
-  - raceRgb / tierRgb
-
----
-
-## 6. UI 模块说明
-
-`App.vue` 的页面结构分为：
-
-1. 错误态：YAML 解析失败卡片
-2. 正常态：角色卡主体
-   - 头部：等级、姓名、元信息
-   - 属性区：旗帜样式属性展示
-   - Tab 区：档案 / 技能 / 装备 / 物品 / 登神长阶 / 背景故事
-3. 操作区：导入按钮与下拉菜单
-
-### 6.1 Tab 显示规则
-
-某个 tab 仅在有对应数据时显示（例如没有装备则不显示装备 tab）
-
-### 6.2 当前常见 UI 改动点
-
-- 属性旗帜尺寸、数字位置、移动端适配：`App.vue` 样式区
-- 品质颜色：`qualityClass` 与对应 CSS 类
-- 错误提示文案：错误卡片模板 + `parseErrorTips`
-
----
-
-## 7. 服务层说明
-
-### 7.1 `common.ts`
-
-提供文本与数组工具：
-
-- `hasText`
-- `hasArrayContent`
-- `parseAttributeValue`
-- `getSmartArray`
-
-### 7.2 `yamlParser.ts`
-
-职责：让 YAML 输入更稳
-
-- 自动替换全角冒号、特殊括号等
-- 对敏感字段进行必要引号保护
-- 属性表达式兼容 `a + b = c` 形式
-- 解析失败时提供可定位信息
-
-### 7.3 `themeService.ts`
-
-职责：主题映射
-
-- `raceColorMap`：种族 -> 色值
-- `tierColorMap`：生命层级 -> 色值
-- `resolveTheme`：从数据计算主题
-- `applyTheme`：写入 CSS 变量
-
-### 7.4 `particleEngine.ts`
-
-职责：背景粒子
-
-- 支持不同层级模式
-- `ResizeObserver` 跟随容器尺寸
-- `IntersectionObserver` 在可视区内再渲染
-
-### 7.5 `importService.ts`
-
-职责：数据导入
-
-- `importToMvuVariables`
-  - 映射角色数据到 MVU 变量结构
-  - 尽量保留历史好感度与心里话
-- `saveToChatWorldbook`
-  - 向当前聊天世界书写入 YAML 内容
----
-
-## 8. 常见问题排查
-### 8.1 页面空白或无数据
-
-- 检查 `index.html` 里的 `#data-source` 是否有 YAML 内容
-- 检查 YAML 是否能被 `yamlParser` 正常解析
-
-### 8.2 主题颜色不对
-
-- 检查种族与生命层级文本是否符合 `themeService` 匹配规则
-
-### 8.3 导入失败
-
-- 检查运行环境是否提供 TavernHelper API
-- 核对控制台错误信息
-
-### 8.4 样式改了但效果异常
-
-- 重点检查 `App.vue` 的 scoped 样式冲突
-- 同时验证桌面与移动端断点表现
-
----
-## 9. 未来维护建议
-
-1. 新增功能先写在 `services`，再在 `App.vue` 连接
-2. 保持 `CharacterData` 与解析逻辑同步演进
-3. 新增 tab 时，记得补齐：
-   - 数据计算
-   - 可见性条件
-   - 模板
-   - 样式
-4. 每次 UI 大改建议附对比截图
-
+[Aladdin](LICENSE)

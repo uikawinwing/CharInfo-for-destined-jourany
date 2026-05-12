@@ -68,10 +68,16 @@ export function normalizeCharacterDataKeys(data: CharacterData): CharacterData {
   return normalizeObjectKeysDeep(data) as CharacterData;
 }
 
+function stripCharacterInfoWrapper(yamlStr: string): string {
+  const text = String(yamlStr ?? '').trim();
+  const match = text.match(/^<char_info>\s*([\s\S]*?)\s*<\/char_info>$/i);
+  return match ? match[1].trim() : text;
+}
+
 export function cleanYaml(yamlStr: string): string {
   if (!yamlStr) return '';
 
-  const normalized = yamlStr
+  const normalized = stripCharacterInfoWrapper(yamlStr)
     .replace(/\u00A0/g, ' ')
     .replace(/\t/g, '  ')
     .replace(/】/g, ']')

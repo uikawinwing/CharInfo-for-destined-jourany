@@ -384,7 +384,7 @@ import {
   getAttributeRawValue,
   splitAttributeFormula,
 } from './services/attributeWarning';
-import { getSmartArray, hasArrayContent, hasText } from './services/common';
+import { getSmartArray, hasArrayContent, hasText, normalizeDisplayText } from './services/common';
 import { importToMvuVariables, saveToChatWorldbook } from './services/importService';
 import { createParticleEngine, type ParticleEngine } from './services/particleEngine';
 import { applyTheme, resolveTheme } from './services/themeService';
@@ -462,10 +462,10 @@ function pickField(source: unknown, ...keys: string[]): unknown {
   return undefined;
 }
 
-const nameText = computed(() => String(pickField(sheetData.value, '姓名') || 'Unknown'));
-const levelText = computed(() => String(pickField(sheetData.value, '等级', '等级') ?? '?'));
-const raceText = computed(() => String(pickField(sheetData.value, '种族', '种族') || '其他'));
-const tierText = computed(() => String(pickField(sheetData.value, '生命层级', '生命层级') || 'Unknown'));
+const nameText = computed(() => normalizeDisplayText(pickField(sheetData.value, '姓名') || 'Unknown'));
+const levelText = computed(() => normalizeDisplayText(pickField(sheetData.value, '等级', '等级') ?? '?'));
+const raceText = computed(() => normalizeDisplayText(pickField(sheetData.value, '种族', '种族') || '其他'));
+const tierText = computed(() => normalizeDisplayText(pickField(sheetData.value, '生命层级', '生命层级') || 'Unknown'));
 
 const identityText = computed(() => getSmartArray(pickField(sheetData.value, '身份')).join(' / ') || '-');
 const classText = computed(() => getSmartArray(pickField(sheetData.value, '职业', '职业')).join(' / ') || '-');
@@ -473,7 +473,12 @@ const classText = computed(() => getSmartArray(pickField(sheetData.value, '职�
 const personalityText = computed(() => {
   const val = pickField(sheetData.value, '性格');
   if (!val) return '';
-  return Array.isArray(val) ? val.join('，') : String(val);
+  return Array.isArray(val)
+    ? val
+        .map(item => normalizeDisplayText(item))
+        .filter(Boolean)
+        .join('，')
+    : normalizeDisplayText(val);
 });
 
 const likesText = computed(() => {
@@ -483,13 +488,13 @@ const likesText = computed(() => {
   return tags.join('，');
 });
 
-const appearanceText = computed(() => String(pickField(sheetData.value, '外貌特质', '外貌特质') || '').trim());
-const attireText = computed(() => String(pickField(sheetData.value, '衣物装饰', '衣物装饰') || '').trim());
-const backstoryText = computed(() => String(pickField(sheetData.value, '背景故事') || '').trim());
+const appearanceText = computed(() => normalizeDisplayText(pickField(sheetData.value, '外貌特质', '外貌特质') || ''));
+const attireText = computed(() => normalizeDisplayText(pickField(sheetData.value, '衣物装饰', '衣物装饰') || ''));
+const backstoryText = computed(() => normalizeDisplayText(pickField(sheetData.value, '背景故事') || ''));
 
 function textFromUnknown(value: unknown): string {
   if (value === undefined || value === null) return '';
-  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'string') return normalizeDisplayText(value);
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) {
     return value
@@ -583,13 +588,13 @@ type EffectEntry = {
 };
 
 function parseNamedEffectLine(line: string): EffectEntry | null {
-  const normalized = String(line || '').trim();
+  const normalized = normalizeDisplayText(line);
   if (!normalized) return null;
 
   const bracketMatch = normalized.match(/^\[([^\]]+)\]\s*[：:]\s*(.*)$/);
   if (bracketMatch) {
-    const name = String(bracketMatch[1] || '').trim();
-    const content = String(bracketMatch[2] || '').trim();
+    const name = normalizeDisplayText(bracketMatch[1]);
+    const content = normalizeDisplayText(bracketMatch[2]);
     if (name && content) return { name, content, fallback: false };
     return null;
   }
@@ -597,8 +602,8 @@ function parseNamedEffectLine(line: string): EffectEntry | null {
   const splitIndex = normalized.search(/[：:]/);
   if (splitIndex <= 0) return null;
 
-  const name = normalized.slice(0, splitIndex).trim();
-  const content = normalized.slice(splitIndex + 1).trim();
+  const name = normalizeDisplayText(normalized.slice(0, splitIndex));
+  const content = normalizeDisplayText(normalized.slice(splitIndex + 1));
   if (!name || !content) return null;
 
   return { name, content, fallback: false };
@@ -642,7 +647,7 @@ function normalizeEffectEntries(value: unknown): EffectEntry[] {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return Object.entries(value as Record<string, unknown>)
       .map(([name, raw]) => {
-        const safeName = String(name || '').trim() || '描述';
+        const safeName = normalizeDisplayText(name) || '描述';
         const content = textFromUnknown(raw).trim();
         return {
           name: safeName,
@@ -1033,11 +1038,18 @@ onBeforeUnmount(() => {
 }
 
 .card-wrapper {
+  --card-shell-radius: 16px;
+  --edge-glow-expand: 10px;
+  --edge-glow-radius-offset: 8px;
+  --edge-glow-blur: 8px;
+  --edge-glow-ring-alpha: 0.2;
+  --edge-glow-outer-alpha: 0.22;
+  --edge-glow-top-alpha: 0.34;
   position: relative;
   width: 100%;
   max-width: 750px;
   margin: 0 auto;
-  border-radius: 16px;
+  border-radius: var(--card-shell-radius);
   overflow: visible;
   z-index: 1;
 }
@@ -1045,27 +1057,28 @@ onBeforeUnmount(() => {
 .card-wrapper::before {
   content: '';
   position: absolute;
-  inset: -10px;
-  border-radius: 24px;
+  inset: calc(var(--edge-glow-expand) * -1);
+  border-radius: calc(var(--card-shell-radius) + var(--edge-glow-radius-offset));
   pointer-events: none;
   z-index: -1;
   background:
     radial-gradient(
       120% 75% at 50% -5%,
-      rgba(var(--tier-color-rgb), 0.34) 0%,
+      rgba(var(--tier-color-rgb), var(--edge-glow-top-alpha)) 0%,
       rgba(var(--tier-color-rgb), 0.14) 38%,
       transparent 74%
     ),
     linear-gradient(
       180deg,
-      rgba(var(--tier-color-rgb), 0.22) 0%,
+      rgba(var(--tier-color-rgb), var(--edge-glow-outer-alpha)) 0%,
       rgba(var(--tier-color-rgb), 0.06) 30%,
       transparent 62%
     );
   box-shadow:
-    0 0 0 1px rgba(var(--tier-color-rgb), 0.2),
-    0 0 24px rgba(var(--tier-color-rgb), 0.22);
-  filter: blur(8px);
+    0 0 0 1px rgba(var(--tier-color-rgb), var(--edge-glow-ring-alpha)),
+    0 0 24px rgba(var(--tier-color-rgb), var(--edge-glow-outer-alpha));
+  filter: blur(var(--edge-glow-blur));
+  opacity: 1;
 }
 
 .frame-layer {
@@ -1108,7 +1121,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   z-index: 0;
-  border-radius: 16px;
+  border-radius: inherit;
   overflow: hidden;
   background: linear-gradient(
     180deg,
@@ -1768,6 +1781,19 @@ onBeforeUnmount(() => {
     padding: 18px 10px 36px;
   }
 
+  .card-wrapper {
+    --edge-glow-expand: 0px;
+    --edge-glow-radius-offset: 0px;
+    --edge-glow-blur: 0px;
+    --edge-glow-ring-alpha: 0;
+    --edge-glow-outer-alpha: 0;
+    --edge-glow-top-alpha: 0;
+  }
+
+  .card-wrapper::before {
+    content: none;
+  }
+
   .sheet-body {
     padding: 16px 18px 84px;
   }
@@ -1793,12 +1819,18 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .card-wrapper {
-    max-width: 100%;
-    border-radius: 14px;
+    max-width: min(100%, 720px);
+    --card-shell-radius: 16px;
+    --edge-glow-expand: 0px;
+    --edge-glow-radius-offset: 0px;
+    --edge-glow-blur: 0px;
+    --edge-glow-ring-alpha: 0;
+    --edge-glow-outer-alpha: 0;
+    --edge-glow-top-alpha: 0;
   }
 
-  .card-background-layer {
-    border-radius: 14px;
+  .card-wrapper::before {
+    content: none;
   }
 
   .sheet-header {

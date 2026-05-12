@@ -11,7 +11,7 @@ type Character = {
   extensions: {
     regex_scripts: TavernRegex[];
     tavern_helper: {
-      scripts: ScriptTree[];
+      scripts: Record<string, any>[];
       variables: Record<string, any>;
     };
     [other: string]: any;
