@@ -42,6 +42,7 @@ export interface FriendlyYamlError {
   cleanedLine?: string;
   originalLine?: string;
   caretLine?: string;
+  tips?: string[];
 }
 
 export interface ParseFailure {

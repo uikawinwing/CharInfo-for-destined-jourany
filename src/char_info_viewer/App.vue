@@ -430,12 +430,14 @@ const showImportMenu = ref(false);
 const importing = ref(false);
 const importButtonText = ref('📥');
 
-const parseErrorTips = computed(() => [
+const defaultParseErrorTips = [
   '1. 先看这行里小箭头 ^ 指着哪里，就改那里',
   '2. 看"键: 值"的格式有沒有问题（通常是多了个冒号或内容写法不对）',
   '3. 看这一行开头前面的空格，尽量和附近长得像的行保持一样多（缩进错误）',
   '4. 内容可能缺少引号、括号，或上一行没有正确结束',
-]);
+];
+
+const parseErrorTips = computed(() => parseError.value?.tips?.length ? parseError.value.tips : defaultParseErrorTips);
 
 const attributeLabelMap: Record<string, string> = {
   力量: '力',
