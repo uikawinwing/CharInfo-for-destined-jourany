@@ -9,7 +9,7 @@ interface Window {
     readonly pauseAudio: typeof pauseAudio;
     readonly getAudioList: typeof getAudioList;
     readonly replaceAudioList: typeof replaceAudioList;
-    readonly insertAudioList: typeof insertAudioList;
+    readonly appendAudioList: typeof appendAudioList;
     readonly getAudioSettings: typeof getAudioSettings;
     readonly setAudioSettings: typeof setAudioSettings;
 
@@ -52,6 +52,7 @@ interface Window {
     readonly generate: typeof generate;
     readonly generateRaw: typeof generateRaw;
     readonly getModelList: typeof getModelList;
+    readonly getProxyPresetNames: typeof getProxyPresetNames;
     readonly stopGenerationById: typeof stopGenerationById;
     readonly stopAllGeneration: typeof stopAllGeneration;
 

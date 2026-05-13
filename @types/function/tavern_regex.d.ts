@@ -25,7 +25,7 @@ declare function formatAsTavernRegexedString(
   source: 'user_input' | 'ai_output' | 'slash_command' | 'world_info' | 'reasoning',
   destination: 'display' | 'prompt',
   { depth, character_name }?: FormatAsTavernRegexedStringOption,
-);
+): string;
 
 type TavernRegex = {
   id: string;
@@ -36,7 +36,7 @@ type TavernRegex = {
 
   find_regex: string;
   replace_string: string;
-  trim_strings: string;
+  trim_strings: string[];
 
   source: {
     user_input: boolean;
