@@ -8,7 +8,7 @@ type TavernApiLike = {
   getVariables?: (scope: VariableScope) => Promise<Record<string, any>>;
   insertOrAssignVariables?: (payload: Record<string, any>, scope: VariableScope) => Promise<void>;
   getOrCreateChatWorldbook?: (chat: 'current', desiredName: string) => Promise<string>;
-  createWorldbookEntries?: (bookName: string, entries: Array<Record<string, any>>) => Promise<void>;
+  createWorldbookEntries?: (bookName: string, entries: Array<Record<string, any>>) => Promise<unknown>;
   getChatWorldbookName?: (chat: 'current') => Promise<string | null>;
 };
 
@@ -287,7 +287,13 @@ export async function importToMvuVariables(data: CharacterData): Promise<void> {
   await api.insertOrAssignVariables(updatePayload, targetScope);
 }
 
-export async function saveToChatWorldbook(data: CharacterData, originalYaml: string): Promise<void> {
+function formatWorldbookContent(originalYaml: string): string {
+  const content = String(originalYaml ?? '').trim();
+  if (!content) return '---';
+  return /^---(?:\r?\n|$)/.test(content) ? content : `---\n${content}`;
+}
+
+export async function saveToChatWorldbook(data: CharacterData, originalYaml: string): Promise<Record<string, unknown>> {
   const api = getApi();
   if (typeof api.getOrCreateChatWorldbook !== 'function' || typeof api.createWorldbookEntries !== 'function') {
     throw new Error('未检测到 Worldbook API。');
@@ -297,6 +303,13 @@ export async function saveToChatWorldbook(data: CharacterData, originalYaml: str
   const characterName = normalizedData.姓名 || 'Unknown';
   const shortName = characterName.split(/[·\s]/)[0];
   const lorebookKey = shortName && shortName.trim().length > 0 ? shortName : characterName;
+  const content = formatWorldbookContent(originalYaml);
+
+  console.info('[CharInfo Viewer] Preparing chat worldbook entry', {
+    characterName,
+    lorebookKey,
+    contentStartsWithDocumentMarker: content.startsWith('---'),
+  });
 
   let bookName: string | null = null;
   if (typeof api.getChatWorldbookName === 'function') {
@@ -314,9 +327,14 @@ export async function saveToChatWorldbook(data: CharacterData, originalYaml: str
     name: characterName,
     enabled: true,
     strategy: { type: 'selective', keys: [lorebookKey] },
-    position: { type: 'after_character_definition', order: 152 },
-    content: originalYaml,
+    position: { type: 'after_character_definition', order: 601 },
+    recursion: { prevent_incoming: true, prevent_outgoing: true, delay_until: null },
+    content,
   };
 
-  await api.createWorldbookEntries(bookName, [newEntry]);
+  console.info('[CharInfo Viewer] Creating chat worldbook entry', { bookName, entry: newEntry });
+  const apiResult = await api.createWorldbookEntries(bookName, [newEntry]);
+  console.info('[CharInfo Viewer] Chat worldbook entry created', { bookName, apiResult });
+
+  return { bookName, entry: newEntry, apiResult };
 }

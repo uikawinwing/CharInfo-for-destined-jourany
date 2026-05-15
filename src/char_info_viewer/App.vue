@@ -428,7 +428,9 @@ let engine: ParticleEngine | null = null;
 
 const showImportMenu = ref(false);
 const importing = ref(false);
-const importButtonText = ref('📥');
+const defaultImportButtonText = '📥';
+const importButtonText = ref(defaultImportButtonText);
+let importButtonResetTimer: ReturnType<typeof setTimeout> | null = null;
 
 const defaultParseErrorTips = [
   '1. 先看这行里小箭头 ^ 指着哪里，就改那里',
@@ -900,10 +902,14 @@ function closeImportMenu() {
 }
 
 function flashImportButton(temp: string, duration = 1200) {
-  const old = importButtonText.value;
+  if (importButtonResetTimer) {
+    clearTimeout(importButtonResetTimer);
+    importButtonResetTimer = null;
+  }
   importButtonText.value = temp;
-  setTimeout(() => {
-    importButtonText.value = old;
+  importButtonResetTimer = setTimeout(() => {
+    importButtonText.value = defaultImportButtonText;
+    importButtonResetTimer = null;
   }, duration);
 }
 
@@ -937,7 +943,12 @@ async function onImportWorldbook() {
 
   try {
     importButtonText.value = '⏳';
-    await saveToChatWorldbook(sheetData.value, originalYamlText.value);
+    console.info('[CharInfo Viewer] Chat worldbook import started', {
+      characterName: sheetData.value.姓名 || 'Unknown',
+      yamlLength: originalYamlText.value.length,
+    });
+    const result = await saveToChatWorldbook(sheetData.value, originalYamlText.value);
+    console.info('[CharInfo Viewer] Chat worldbook import succeeded', result);
     flashImportButton('✅', 1200);
   } catch (err: any) {
     console.error('Worldbook Save Error:', err);
@@ -965,6 +976,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   engine?.destroy();
   engine = null;
+  if (importButtonResetTimer) {
+    clearTimeout(importButtonResetTimer);
+    importButtonResetTimer = null;
+  }
   document.removeEventListener('click', onDocumentClick);
   document.removeEventListener('keydown', onKeydown);
 });
