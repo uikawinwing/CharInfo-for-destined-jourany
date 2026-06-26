@@ -1,0 +1,2192 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AIRP NPC Tarot Sigil Preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --page-bg: #08090d;
+        --panel-bg: rgba(14, 16, 23, 0.86);
+        --panel-line: rgba(255, 255, 255, 0.12);
+        --text: #f5f2ec;
+        --muted: #b9b4aa;
+        --soft: #7d766d;
+        --tier-color: #ffd700;
+        --tier-color-rgb: 255, 215, 0;
+        --race-color: #c99a56;
+        --race-color-rgb: 201, 154, 86;
+        --accent-color: #9fb9ff;
+        --accent-color-rgb: 159, 185, 255;
+        --redraw-duration: 1.45s;
+        --glow-alpha: 0.34;
+        --line-alpha: 0.86;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 22% 16%, rgba(199, 154, 86, 0.12), transparent 26%),
+          radial-gradient(circle at 82% 12%, rgba(86, 130, 180, 0.1), transparent 28%),
+          linear-gradient(180deg, #101018 0%, var(--page-bg) 100%);
+        color: var(--text);
+        font-family:
+          "Noto Sans SC",
+          "Microsoft YaHei",
+          system-ui,
+          sans-serif;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      .app-shell {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 24px 0 34px;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(290px, 360px) minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .editor-panel,
+      .preview-panel {
+        border: 1px solid var(--panel-line);
+        border-radius: 8px;
+        background: var(--panel-bg);
+        box-shadow: 0 22px 54px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(16px);
+      }
+
+      .editor-panel {
+        position: sticky;
+        top: 18px;
+        padding: 16px;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .panel-title {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.18rem;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      .control-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .field-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      label {
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 700;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        min-width: 0;
+        color: var(--text);
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.36);
+        outline: none;
+      }
+
+      input,
+      select {
+        height: 38px;
+        padding: 0 10px;
+      }
+
+      textarea {
+        min-height: 72px;
+        resize: vertical;
+        padding: 10px;
+        line-height: 1.45;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: rgba(var(--tier-color-rgb), 0.72);
+        box-shadow: 0 0 0 3px rgba(var(--tier-color-rgb), 0.13);
+      }
+
+      .range-line {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      input[type="range"] {
+        padding: 0;
+        accent-color: var(--tier-color);
+      }
+
+      .tier-value {
+        min-width: 42px;
+        text-align: right;
+        color: var(--tier-color);
+        font-weight: 800;
+      }
+
+      .button-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+
+      .action-button {
+        min-height: 36px;
+        border: 1px solid rgba(var(--tier-color-rgb), 0.45);
+        border-radius: 6px;
+        color: var(--text);
+        background: rgba(var(--tier-color-rgb), 0.12);
+        cursor: pointer;
+        padding: 7px 12px;
+        transition:
+          transform 0.18s ease,
+          border-color 0.18s ease,
+          background 0.18s ease;
+      }
+
+      .action-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(var(--tier-color-rgb), 0.85);
+        background: rgba(var(--tier-color-rgb), 0.18);
+      }
+
+      .token-readout {
+        display: grid;
+        gap: 6px;
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.4;
+      }
+
+      .token-readout code {
+        color: var(--tier-color);
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+
+      .preview-panel {
+        min-height: calc(100vh - 48px);
+        display: grid;
+        place-items: center;
+        padding: clamp(14px, 3vw, 32px);
+      }
+
+      .flip-shell {
+        width: min(100%, 680px);
+        perspective: 1400px;
+      }
+
+      .card-face {
+        width: 100%;
+        transform-origin: center;
+        animation: flip-face-in 0.48s cubic-bezier(0.2, 0.78, 0.22, 1) both;
+      }
+
+      .flip-shell.is-front .card-back-face,
+      .flip-shell:not(.is-front) .card-front-face {
+        display: none;
+      }
+
+      .npc-card {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+        border: 1px solid rgba(var(--tier-color-rgb), 0.36);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 50% 32%, rgba(var(--race-color-rgb), 0.16), transparent 35%),
+          radial-gradient(circle at 50% 12%, rgba(var(--tier-color-rgb), 0.2), transparent 45%),
+          linear-gradient(180deg, #1a1429 0%, #090810 100%);
+        box-shadow:
+          0 24px 58px rgba(0, 0, 0, 0.82),
+          0 0 32px rgba(var(--tier-color-rgb), 0.17),
+          inset 0 0 30px rgba(var(--tier-color-rgb), 0.055);
+      }
+
+      .npc-card::before,
+      .npc-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .npc-card::before {
+        background-image:
+          linear-gradient(90deg, transparent 96%, rgba(var(--tier-color-rgb), 0.08) 96%),
+          linear-gradient(0deg, transparent 96%, rgba(var(--race-color-rgb), 0.07) 96%);
+        background-size: 34px 34px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.76), transparent 64%);
+      }
+
+      .npc-card::after {
+        border-radius: inherit;
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+          inset 0 0 58px rgba(0, 0, 0, 0.32);
+      }
+
+      .card-back {
+        position: relative;
+        min-height: min(76vh, 720px);
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(var(--tier-color-rgb), 0.42);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 50% 24%, rgba(var(--tier-color-rgb), 0.2), transparent 36%),
+          radial-gradient(circle at 50% 58%, rgba(var(--race-color-rgb), 0.18), transparent 48%),
+          linear-gradient(180deg, #17101f 0%, #08070d 100%);
+        box-shadow:
+          0 24px 58px rgba(0, 0, 0, 0.82),
+          0 0 34px rgba(var(--tier-color-rgb), 0.17),
+          inset 0 0 42px rgba(var(--tier-color-rgb), 0.07);
+      }
+
+      .card-back::before,
+      .card-back::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .card-back::before {
+        background:
+          linear-gradient(90deg, transparent 96%, rgba(var(--tier-color-rgb), 0.08) 96%),
+          linear-gradient(0deg, transparent 96%, rgba(var(--race-color-rgb), 0.07) 96%);
+        background-size: 30px 30px;
+        mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.9), transparent 74%);
+      }
+
+      .card-back::after {
+        border-radius: inherit;
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+          inset 0 0 0 10px rgba(0, 0, 0, 0.1),
+          inset 0 0 92px rgba(0, 0, 0, 0.48);
+      }
+
+      .geometry-frame {
+        position: absolute;
+        inset: 18px;
+        z-index: 1;
+        pointer-events: none;
+      }
+
+      .mini-motif {
+        position: absolute;
+        width: 64px;
+        height: 64px;
+        opacity: 0.62;
+        filter: drop-shadow(0 0 8px rgba(var(--tier-color-rgb), 0.18));
+      }
+
+      .mini-motif svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .mini-motif svg * {
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+      }
+
+      .motif-corner-tl {
+        top: 0;
+        left: 0;
+      }
+
+      .motif-corner-tr {
+        top: 0;
+        right: 0;
+      }
+
+      .motif-corner-bl {
+        bottom: 0;
+        left: 0;
+      }
+
+      .motif-corner-br {
+        right: 0;
+        bottom: 0;
+      }
+
+      .motif-side-left {
+        top: 50%;
+        left: 2px;
+        transform: translateY(-50%);
+      }
+
+      .motif-side-right {
+        top: 50%;
+        right: 2px;
+        transform: translateY(-50%);
+      }
+
+      .motif-top {
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .motif-bottom {
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .side-script {
+        position: absolute;
+        top: 96px;
+        bottom: 96px;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        color: rgba(245, 242, 236, 0.34);
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.24em;
+        line-height: 1.7;
+        text-transform: uppercase;
+        writing-mode: vertical-rl;
+        pointer-events: none;
+      }
+
+      .side-script.left {
+        left: 18px;
+      }
+
+      .side-script.right {
+        right: 18px;
+      }
+
+      .back-content {
+        position: relative;
+        z-index: 2;
+        width: min(100%, 520px);
+        display: grid;
+        justify-items: center;
+        gap: 18px;
+        padding: clamp(22px, 5vw, 42px);
+        text-align: center;
+      }
+
+      .back-minor {
+        color: rgba(245, 242, 236, 0.62);
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .back-name {
+        max-width: 100%;
+        margin: 0;
+        overflow-wrap: anywhere;
+        font-family: Georgia, "Times New Roman", "Noto Serif SC", serif;
+        font-size: clamp(2rem, 6vw, 4.2rem);
+        line-height: 1;
+        letter-spacing: 0;
+        text-shadow:
+          0 2px 0 rgba(0, 0, 0, 0.58),
+          0 0 28px rgba(var(--tier-color-rgb), 0.28);
+      }
+
+      .back-sigil-mark {
+        width: min(260px, 64vw);
+        aspect-ratio: 1;
+        filter:
+          drop-shadow(0 0 8px rgba(var(--tier-color-rgb), 0.32))
+          drop-shadow(0 0 22px rgba(var(--race-color-rgb), 0.2));
+      }
+
+      .back-sigil-mark svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .tarot-sigil-root.back-sigil-mark {
+        width: min(320px, 68vw);
+      }
+
+      .back-meta {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        color: rgba(245, 242, 236, 0.78);
+        font-size: 0.92rem;
+      }
+
+      .flip-button,
+      .back-button {
+        min-height: 38px;
+        border: 1px solid rgba(var(--tier-color-rgb), 0.58);
+        border-radius: 999px;
+        color: var(--text);
+        background: rgba(var(--tier-color-rgb), 0.13);
+        cursor: pointer;
+        padding: 8px 16px;
+        box-shadow: 0 0 18px rgba(var(--tier-color-rgb), 0.12);
+        transition:
+          transform 0.18s ease,
+          border-color 0.18s ease,
+          background 0.18s ease;
+      }
+
+      .flip-button:hover,
+      .back-button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(var(--tier-color-rgb), 0.86);
+        background: rgba(var(--tier-color-rgb), 0.2);
+      }
+
+      .front-toolbar {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        justify-content: center;
+        padding: 14px 0 0;
+      }
+
+      .back-button {
+        min-height: 32px;
+        padding: 6px 12px;
+        font-size: 0.84rem;
+        background: rgba(0, 0, 0, 0.32);
+      }
+
+      .card-content {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 16px;
+        padding: clamp(18px, 4vw, 34px);
+      }
+
+      .card-header {
+        display: grid;
+        justify-items: center;
+        gap: 10px;
+        text-align: center;
+      }
+
+      .level-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 4px 14px;
+        border: 1px solid rgba(var(--tier-color-rgb), 0.82);
+        border-radius: 999px;
+        color: var(--tier-color);
+        background: rgba(0, 0, 0, 0.48);
+        font-family: Georgia, "Times New Roman", serif;
+        font-weight: 700;
+        box-shadow: 0 0 18px rgba(var(--tier-color-rgb), 0.22);
+      }
+
+      .char-name {
+        margin: 0;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        font-family: Georgia, "Times New Roman", "Noto Serif SC", serif;
+        font-size: clamp(2rem, 6vw, 4rem);
+        line-height: 1;
+        letter-spacing: 0;
+        text-shadow:
+          0 2px 0 rgba(0, 0, 0, 0.52),
+          0 0 22px rgba(var(--tier-color-rgb), 0.22);
+      }
+
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        color: rgba(245, 242, 236, 0.78);
+        font-size: 0.94rem;
+      }
+
+      .meta-chip {
+        min-height: 27px;
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.22);
+      }
+
+      .visual-stage {
+        position: relative;
+        display: grid;
+        place-items: center;
+        min-height: clamp(250px, 46vw, 380px);
+        padding: 4px;
+      }
+
+      .front-side-motifs {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .front-side-motifs .mini-motif {
+        width: 48px;
+        height: 48px;
+        opacity: 0.48;
+      }
+
+      .visual-stage::before {
+        content: "";
+        position: absolute;
+        width: min(74%, 420px);
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle, rgba(var(--tier-color-rgb), var(--glow-alpha)), transparent 58%),
+          radial-gradient(circle, rgba(var(--race-color-rgb), 0.18), transparent 68%);
+        filter: blur(24px);
+        opacity: 0.76;
+      }
+
+      .corner-frame {
+        position: absolute;
+        inset: 10px;
+        pointer-events: none;
+      }
+
+      .corner-frame i {
+        position: absolute;
+        width: 58px;
+        height: 58px;
+        border-color: rgba(var(--tier-color-rgb), 0.52);
+        border-style: solid;
+      }
+
+      .corner-frame i:nth-child(1) {
+        left: 0;
+        top: 0;
+        border-width: 1px 0 0 1px;
+      }
+
+      .corner-frame i:nth-child(2) {
+        right: 0;
+        top: 0;
+        border-width: 1px 1px 0 0;
+      }
+
+      .corner-frame i:nth-child(3) {
+        left: 0;
+        bottom: 0;
+        border-width: 0 0 1px 1px;
+      }
+
+      .corner-frame i:nth-child(4) {
+        right: 0;
+        bottom: 0;
+        border-width: 0 1px 1px 0;
+      }
+
+      .tarot-sigil-root {
+        position: relative;
+        z-index: 1;
+        width: min(340px, 82vw);
+        aspect-ratio: 1;
+        color: var(--tier-color);
+        filter:
+          drop-shadow(0 0 7px rgba(var(--tier-color-rgb), 0.28))
+          drop-shadow(0 0 16px rgba(var(--race-color-rgb), 0.16));
+      }
+
+      .tarot-sigil {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .geometry-sigil {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .geometry-core {
+        stroke-width: 1.05;
+        opacity: 0.9;
+      }
+
+      .geometry-fine {
+        stroke-width: 0.62;
+        opacity: 0.5;
+      }
+
+      .geometry-secondary {
+        stroke: rgb(var(--race-color-rgb));
+        stroke-width: 0.78;
+        opacity: 0.68;
+      }
+
+      .geometry-accent {
+        stroke: rgb(var(--accent-color-rgb));
+        stroke-width: 0.78;
+        opacity: 0.74;
+      }
+
+      .geometry-node {
+        filter: drop-shadow(0 0 3px rgba(var(--tier-color-rgb), 0.45));
+      }
+
+      .base,
+      .race,
+      .role,
+      .accent {
+        display: none;
+      }
+
+      .base-orbital .base.base-orbital,
+      .base-rectangular .base.base-rectangular,
+      .base-floral .base.base-floral,
+      .base-ritual .base.base-ritual,
+      .base-weapon .base.base-weapon,
+      .base-circuit .base.base-circuit,
+      .race-human .race.race-human,
+      .race-dragon .race.race-dragon,
+      .race-elf .race.race-elf,
+      .race-construct .race.race-construct,
+      .race-abyss .race.race-abyss,
+      .race-celestial .race.race-celestial,
+      .race-beast .race.race-beast,
+      .race-elemental .race.race-elemental,
+      .role-occult .role.role-occult,
+      .role-warrior .role.role-warrior,
+      .role-noble .role.role-noble,
+      .role-wanderer .role.role-wanderer,
+      .role-healer .role.role-healer,
+      .role-scholar .role.role-scholar,
+      .role-assassin .role.role-assassin,
+      .role-merchant .role.role-merchant,
+      .accent-fire .accent.accent-fire,
+      .accent-water .accent.accent-water,
+      .accent-ice .accent.accent-ice,
+      .accent-wind .accent.accent-wind,
+      .accent-thunder .accent.accent-thunder,
+      .accent-light .accent.accent-light,
+      .accent-dark .accent.accent-dark,
+      .accent-wood .accent.accent-wood {
+        display: block;
+      }
+
+      .sigil-line {
+        fill: none;
+        stroke: rgb(var(--tier-color-rgb));
+        stroke-width: 1.15;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        opacity: var(--line-alpha);
+        vector-effect: non-scaling-stroke;
+        stroke-dasharray: 720;
+        stroke-dashoffset: 0;
+      }
+
+      .sigil-thin {
+        stroke-width: 0.72;
+        opacity: 0.58;
+      }
+
+      .race-line {
+        stroke: rgb(var(--race-color-rgb));
+        opacity: 0.76;
+      }
+
+      .role-line {
+        stroke: rgb(var(--tier-color-rgb));
+        opacity: 0.92;
+      }
+
+      .accent-line {
+        stroke: rgb(var(--accent-color-rgb));
+        opacity: 0.82;
+      }
+
+      .sigil-node {
+        fill: rgb(var(--tier-color-rgb));
+        opacity: 0.86;
+        transform-origin: center;
+        transform-box: fill-box;
+      }
+
+      .race-node {
+        fill: rgb(var(--race-color-rgb));
+      }
+
+      .accent-node {
+        fill: rgb(var(--accent-color-rgb));
+      }
+
+      .npc-card:hover .sigil-line,
+      .card-back:hover .sigil-line,
+      .preview-redraw .sigil-line {
+        animation: sigil-redraw var(--redraw-duration) ease-out forwards;
+      }
+
+      .npc-card:hover .sigil-node,
+      .card-back:hover .sigil-node,
+      .preview-redraw .sigil-node {
+        animation: sigil-node-pop 0.56s cubic-bezier(0.17, 0.89, 0.32, 1.49) both;
+      }
+
+      .npc-card:hover .sigil-node:nth-of-type(2n),
+      .card-back:hover .sigil-node:nth-of-type(2n),
+      .preview-redraw .sigil-node:nth-of-type(2n) {
+        animation-delay: 0.08s;
+      }
+
+      .npc-card:hover .sigil-node:nth-of-type(3n),
+      .card-back:hover .sigil-node:nth-of-type(3n),
+      .preview-redraw .sigil-node:nth-of-type(3n) {
+        animation-delay: 0.14s;
+      }
+
+      .race-construct .race-line {
+        stroke-dasharray: 12 6;
+      }
+
+      .race-abyss .race-line,
+      .role-assassin .role-line {
+        stroke-dasharray: 18 9 4 9;
+      }
+
+      .race-dragon .race-line {
+        stroke-dasharray: 900;
+      }
+
+      .base-circuit .base-line,
+      .accent-thunder .accent-line {
+        stroke-dasharray: 10 5;
+      }
+
+      .tier-1 {
+        --redraw-duration: 0.95s;
+        --glow-alpha: 0.1;
+        --line-alpha: 0.62;
+      }
+
+      .tier-2 {
+        --redraw-duration: 1.05s;
+        --glow-alpha: 0.16;
+        --line-alpha: 0.72;
+      }
+
+      .tier-3 {
+        --redraw-duration: 1.2s;
+        --glow-alpha: 0.22;
+        --line-alpha: 0.82;
+      }
+
+      .tier-4 {
+        --redraw-duration: 1.35s;
+        --glow-alpha: 0.28;
+        --line-alpha: 0.88;
+      }
+
+      .tier-5 {
+        --redraw-duration: 1.45s;
+        --glow-alpha: 0.34;
+        --line-alpha: 0.94;
+      }
+
+      .tier-6 {
+        --redraw-duration: 1.55s;
+        --glow-alpha: 0.42;
+        --line-alpha: 0.98;
+      }
+
+      .tier-7 {
+        --redraw-duration: 1.7s;
+        --glow-alpha: 0.5;
+        --line-alpha: 1;
+      }
+
+      .tier-7 .outer-rotation {
+        transform-origin: 60px 60px;
+        animation: slow-turn 18s linear infinite;
+      }
+
+      .caption {
+        display: grid;
+        gap: 8px;
+        text-align: center;
+      }
+
+      .caption-title {
+        margin: 0;
+        color: var(--tier-color);
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(1.05rem, 2vw, 1.35rem);
+        letter-spacing: 0;
+      }
+
+      .caption-text {
+        margin: 0 auto;
+        max-width: 52ch;
+        color: rgba(245, 242, 236, 0.76);
+        line-height: 1.58;
+      }
+
+      .attribute-flags {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .back-attribute-flags {
+        width: min(100%, 500px);
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 7px;
+      }
+
+      .flag {
+        position: relative;
+        min-width: 0;
+        min-height: 82px;
+        display: grid;
+        justify-items: center;
+        align-content: start;
+        gap: 5px;
+        padding: 10px 5px 20px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-top: 2px solid rgb(var(--race-color-rgb));
+        background: rgba(0, 0, 0, 0.26);
+        clip-path: polygon(0 0, 100% 0, 100% 83%, 50% 100%, 0 83%);
+      }
+
+      .flag span {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }
+
+      .flag-name {
+        color: rgba(245, 242, 236, 0.82);
+        font-size: 0.86rem;
+        font-weight: 700;
+      }
+
+      .flag-value {
+        color: #fff;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(1.35rem, 4vw, 2.1rem);
+        line-height: 1;
+        font-weight: 700;
+        text-shadow: 0 0 14px rgba(var(--race-color-rgb), 0.34);
+      }
+
+      .back-attribute-flags .flag {
+        min-height: 68px;
+        padding: 8px 4px 17px;
+        background:
+          linear-gradient(180deg, rgba(var(--race-color-rgb), 0.12), rgba(0, 0, 0, 0.24)),
+          rgba(0, 0, 0, 0.22);
+        border-color: rgba(var(--tier-color-rgb), 0.18);
+        border-top-color: rgb(var(--race-color-rgb));
+      }
+
+      .back-attribute-flags .flag-name {
+        font-size: 0.74rem;
+      }
+
+      .back-attribute-flags .flag-value {
+        font-size: clamp(1.2rem, 3.4vw, 1.72rem);
+      }
+
+      @keyframes sigil-redraw {
+        0% {
+          stroke-dashoffset: 720;
+          opacity: 0.12;
+        }
+
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+
+      @keyframes sigil-node-pop {
+        0% {
+          transform: scale(0);
+          opacity: 0;
+        }
+
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      @keyframes flip-face-in {
+        0% {
+          opacity: 0;
+          transform: rotateY(-74deg) scale(0.985);
+        }
+
+        100% {
+          opacity: 1;
+          transform: rotateY(0deg) scale(1);
+        }
+      }
+
+      @keyframes slow-turn {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      @media (max-width: 860px) {
+        .app-shell {
+          width: min(100% - 22px, 680px);
+          padding-top: 12px;
+        }
+
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .editor-panel {
+          position: static;
+        }
+
+        .preview-panel {
+          min-height: auto;
+          padding: 10px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .field-row {
+          grid-template-columns: 1fr;
+        }
+
+        .card-content {
+          gap: 12px;
+          padding: 16px 12px 18px;
+        }
+
+        .visual-stage {
+          min-height: 250px;
+        }
+
+        .card-back {
+          min-height: 620px;
+        }
+
+        .back-content {
+          gap: 14px;
+          padding: 18px 12px;
+        }
+
+        .back-sigil-mark {
+          width: min(220px, 70vw);
+        }
+
+        .tarot-sigil-root.back-sigil-mark {
+          width: min(240px, 74vw);
+        }
+
+        .tarot-sigil-root {
+          width: min(250px, 84vw);
+        }
+
+        .corner-frame {
+          inset: 7px;
+        }
+
+        .corner-frame i {
+          width: 38px;
+          height: 38px;
+        }
+
+        .attribute-flags {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .back-attribute-flags {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 5px;
+        }
+
+        .flag {
+          min-height: 74px;
+        }
+
+        .back-attribute-flags .flag {
+          min-height: 58px;
+          padding: 7px 3px 15px;
+        }
+
+        .geometry-frame {
+          inset: 10px;
+        }
+
+        .mini-motif {
+          width: 42px;
+          height: 42px;
+          opacity: 0.5;
+        }
+
+        .motif-side-left,
+        .motif-side-right {
+          display: none;
+        }
+
+        .side-script {
+          display: none;
+        }
+
+        .meta-row {
+          gap: 6px;
+          font-size: 0.84rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <div class="workspace">
+        <aside class="editor-panel" aria-label="塔罗星图卡编辑器">
+          <div class="panel-head">
+            <h1 class="panel-title">AIRP Sigil Lab</h1>
+            <button class="action-button" type="button" id="randomizeBtn">随机</button>
+          </div>
+
+          <div class="control-grid">
+            <div class="field-row">
+              <div class="field">
+                <label for="nameInput">姓名</label>
+                <input id="nameInput" value="维奥莱塔" />
+              </div>
+              <div class="field">
+                <label for="levelInput">等级</label>
+                <input id="levelInput" value="62" inputmode="numeric" />
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="raceLabelInput">种族显示</label>
+                <input id="raceLabelInput" value="人类" />
+              </div>
+              <div class="field">
+                <label for="roleLabelInput">身份 / 职业显示</label>
+                <input id="roleLabelInput" value="帝国女皇 / 魔剑士" />
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="baseSelect">Base Model</label>
+                <select id="baseSelect"></select>
+              </div>
+              <div class="field">
+                <label for="raceSelect">Race Family</label>
+                <select id="raceSelect"></select>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="roleSelect">Role Family</label>
+                <select id="roleSelect"></select>
+              </div>
+              <div class="field">
+                <label for="accentSelect">Accent</label>
+                <select id="accentSelect"></select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="tierInput">生命层级 / Tier</label>
+              <div class="range-line">
+                <input id="tierInput" type="range" min="1" max="7" value="6" />
+                <span class="tier-value" id="tierValue">6</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="hookInput">Hook Sentence</label>
+              <textarea id="hookInput">她站在帝国旧星盘的中央，像一枚终于停止退让的金色棋子。</textarea>
+            </div>
+
+            <div class="field">
+              <label for="attrInput">属性旗帜</label>
+              <textarea id="attrInput">力量:31, 敏捷:27, 智识:44, 意志:39, 魅力:52</textarea>
+            </div>
+
+            <div class="button-row">
+              <button class="action-button" type="button" id="redrawBtn">重播线稿</button>
+              <button class="action-button" type="button" id="sampleKnightBtn">人类骑士</button>
+              <button class="action-button" type="button" id="sampleMageBtn">精灵法师</button>
+              <button class="action-button" type="button" id="sampleConstructBtn">构装样本</button>
+            </div>
+          </div>
+
+          <div class="token-readout" aria-live="polite">
+            <div>当前组合：<code id="comboReadout"></code></div>
+            <div>颜色：<code id="colorReadout"></code></div>
+          </div>
+        </aside>
+
+        <section class="preview-panel" aria-label="塔罗星图卡预览">
+          <div class="flip-shell" id="flipShell">
+            <article class="card-back card-face card-back-face tier-6" id="cardBack" tabindex="0" role="button" aria-label="揭示角色卡">
+              <div class="corner-frame" aria-hidden="true">
+                <i></i>
+                <i></i>
+                <i></i>
+                <i></i>
+              </div>
+              <div class="geometry-frame" id="backFrame" aria-hidden="true"></div>
+              <div class="side-script left" id="leftScript" aria-hidden="true">AIRP TAROT SIGIL</div>
+              <div class="side-script right" id="rightScript" aria-hidden="true">GEOMETRIC NPC CARD</div>
+
+              <div class="back-content">
+                <div class="back-minor" id="backTierOutput">第六层级</div>
+                <h2 class="back-name" id="backNameOutput">维奥莱塔</h2>
+
+                <div
+                  class="tarot-sigil-root back-sigil-mark base-orbital race-human role-noble accent-light tier-6"
+                  id="backSigilRoot"
+                  aria-hidden="true"
+                ></div>
+
+                <div class="back-meta">
+                  <span class="meta-chip" id="backRaceOutput">人类</span>
+                  <span class="meta-chip" id="backRoleOutput">帝国女皇 / 魔剑士</span>
+                </div>
+
+                <div class="attribute-flags back-attribute-flags" id="backFlags" aria-label="卡背属性旗帜"></div>
+
+                <button class="flip-button" type="button" id="revealBtn">揭示角色卡</button>
+              </div>
+            </article>
+
+            <article class="npc-card card-face card-front-face tier-6" id="card">
+              <div class="front-toolbar">
+                <button class="back-button" type="button" id="hideBtn">翻回卡背</button>
+              </div>
+            <div class="card-content">
+              <header class="card-header">
+                <span class="level-badge" id="levelBadge">Lv.62</span>
+                <h2 class="char-name" id="nameOutput">维奥莱塔</h2>
+                <div class="meta-row">
+                  <span class="meta-chip" id="raceOutput">人类</span>
+                  <span class="meta-chip" id="roleOutput">帝国女皇 / 魔剑士</span>
+                  <span class="meta-chip" id="tierOutput">第六层级</span>
+                </div>
+              </header>
+
+              <div class="visual-stage">
+                <div class="front-side-motifs" id="frontFrame" aria-hidden="true"></div>
+                <div class="corner-frame" aria-hidden="true">
+                  <i></i>
+                  <i></i>
+                  <i></i>
+                  <i></i>
+                </div>
+
+                <div
+                  class="tarot-sigil-root base-orbital race-human role-noble accent-light tier-6"
+                  id="sigilRoot"
+                  aria-hidden="true"
+                >
+                  <svg class="tarot-sigil" viewBox="0 0 120 120" role="img">
+                    <defs>
+                      <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+                        <feGaussianBlur stdDeviation="1.6" result="blur" />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+
+                    <g class="outer-rotation">
+                      <circle class="sigil-line sigil-thin" cx="60" cy="60" r="53" />
+                      <circle class="sigil-line sigil-thin" cx="60" cy="60" r="45" stroke-dasharray="2 6" />
+                      <path class="sigil-line sigil-thin" d="M60 7 L63 16 L73 16 L65 22 L68 32 L60 26 L52 32 L55 22 L47 16 L57 16 Z" />
+                    </g>
+
+                    <g class="base-layer">
+                      <g class="base base-orbital">
+                        <circle class="sigil-line base-line" cx="60" cy="60" r="29" />
+                        <ellipse class="sigil-line base-line sigil-thin" cx="60" cy="60" rx="42" ry="15" />
+                        <ellipse class="sigil-line base-line sigil-thin" cx="60" cy="60" rx="15" ry="42" transform="rotate(38 60 60)" />
+                        <path class="sigil-line base-line" d="M35 78 C46 65 74 55 87 38" />
+                        <circle class="sigil-node" cx="25" cy="60" r="2.2" />
+                        <circle class="sigil-node" cx="95" cy="60" r="2.2" />
+                        <circle class="sigil-node" cx="60" cy="31" r="2" />
+                      </g>
+
+                      <g class="base base-rectangular">
+                        <rect class="sigil-line base-line" x="30" y="25" width="60" height="70" rx="2" />
+                        <path class="sigil-line base-line sigil-thin" d="M38 34 H82 M38 86 H82 M30 25 L42 14 H78 L90 25 M30 95 L42 106 H78 L90 95" />
+                        <path class="sigil-line base-line" d="M42 72 L60 42 L78 72 Z" />
+                        <path class="sigil-line base-line sigil-thin" d="M34 30 L86 90 M86 30 L34 90" />
+                        <circle class="sigil-node" cx="60" cy="42" r="2" />
+                        <circle class="sigil-node" cx="60" cy="72" r="2" />
+                      </g>
+
+                      <g class="base base-floral">
+                        <circle class="sigil-line base-line" cx="60" cy="60" r="18" />
+                        <path class="sigil-line base-line" d="M60 24 C73 35 73 48 60 60 C47 48 47 35 60 24 Z" />
+                        <path class="sigil-line base-line" d="M60 96 C47 85 47 72 60 60 C73 72 73 85 60 96 Z" />
+                        <path class="sigil-line base-line" d="M24 60 C35 47 48 47 60 60 C48 73 35 73 24 60 Z" />
+                        <path class="sigil-line base-line" d="M96 60 C85 73 72 73 60 60 C72 47 85 47 96 60 Z" />
+                        <path class="sigil-line base-line sigil-thin" d="M35 35 C50 41 70 41 85 35 M35 85 C50 79 70 79 85 85" />
+                        <circle class="sigil-node" cx="60" cy="24" r="2" />
+                        <circle class="sigil-node" cx="96" cy="60" r="2" />
+                        <circle class="sigil-node" cx="60" cy="96" r="2" />
+                        <circle class="sigil-node" cx="24" cy="60" r="2" />
+                      </g>
+
+                      <g class="base base-ritual">
+                        <circle class="sigil-line base-line" cx="60" cy="60" r="35" />
+                        <circle class="sigil-line base-line sigil-thin" cx="60" cy="60" r="22" />
+                        <path class="sigil-line base-line" d="M60 26 L91 80 H29 Z" />
+                        <path class="sigil-line base-line sigil-thin" d="M60 94 L29 40 H91 Z" />
+                        <path class="sigil-line base-line" d="M52 60 C55 54 65 54 68 60 C65 66 55 66 52 60 Z" />
+                        <circle class="sigil-node" cx="60" cy="60" r="2.4" />
+                        <circle class="sigil-node" cx="60" cy="26" r="2" />
+                        <circle class="sigil-node" cx="91" cy="80" r="2" />
+                        <circle class="sigil-node" cx="29" cy="80" r="2" />
+                      </g>
+
+                      <g class="base base-weapon">
+                        <circle class="sigil-line base-line" cx="60" cy="60" r="31" />
+                        <path class="sigil-line base-line" d="M60 18 L65 34 L63 82 L60 102 L57 82 L55 34 Z" />
+                        <path class="sigil-line base-line" d="M30 30 L52 53 M90 30 L68 53 M30 90 L52 67 M90 90 L68 67" />
+                        <path class="sigil-line base-line sigil-thin" d="M44 44 H76 M44 76 H76 M50 51 C54 47 66 47 70 51 L70 74 C65 80 55 80 50 74 Z" />
+                        <circle class="sigil-node" cx="60" cy="18" r="2" />
+                        <circle class="sigil-node" cx="30" cy="30" r="1.8" />
+                        <circle class="sigil-node" cx="90" cy="30" r="1.8" />
+                      </g>
+
+                      <g class="base base-circuit">
+                        <rect class="sigil-line base-line" x="27" y="27" width="66" height="66" rx="4" />
+                        <path class="sigil-line base-line" d="M38 42 H55 V31 M65 31 V48 H82 M38 78 H52 V63 H68 V78 H82" />
+                        <path class="sigil-line base-line sigil-thin" d="M28 58 H48 M72 58 H92 M60 28 V45 M60 75 V92" />
+                        <rect class="sigil-line base-line" x="51" y="51" width="18" height="18" rx="2" />
+                        <rect class="sigil-node" x="35" y="39" width="4" height="4" rx="1" />
+                        <rect class="sigil-node" x="81" y="46" width="4" height="4" rx="1" />
+                        <rect class="sigil-node" x="81" y="76" width="4" height="4" rx="1" />
+                      </g>
+                    </g>
+
+                    <g class="race-layer">
+                      <g class="race race-human">
+                        <path class="sigil-line race-line" d="M48 37 L54 44 L60 34 L66 44 L72 37 L70 50 H50 Z" />
+                        <path class="sigil-line race-line sigil-thin" d="M60 50 V87 M45 87 H75" />
+                        <circle class="sigil-node race-node" cx="60" cy="34" r="1.7" />
+                      </g>
+
+                      <g class="race race-dragon">
+                        <path class="sigil-line race-line" d="M38 78 C48 42 69 36 82 58 C72 52 61 58 55 72" />
+                        <path class="sigil-line race-line" d="M72 38 L80 30 M78 45 L90 42 M49 52 L39 45 M53 62 L42 62" />
+                        <path class="sigil-line race-line sigil-thin" d="M46 74 C55 70 64 70 74 76" stroke-dasharray="3 5" />
+                        <circle class="sigil-node race-node" cx="82" cy="58" r="1.9" />
+                      </g>
+
+                      <g class="race race-elf">
+                        <path class="sigil-line race-line" d="M48 75 C35 55 42 37 59 31 C57 50 52 62 48 75 Z" />
+                        <path class="sigil-line race-line" d="M72 75 C85 55 78 37 61 31 C63 50 68 62 72 75 Z" />
+                        <path class="sigil-line race-line sigil-thin" d="M45 79 C54 67 66 67 75 79" />
+                        <circle class="sigil-node race-node" cx="60" cy="31" r="1.7" />
+                      </g>
+
+                      <g class="race race-construct">
+                        <path class="sigil-line race-line" d="M38 35 H51 V48 H69 V35 H82 M38 85 H51 V72 H69 V85 H82" />
+                        <path class="sigil-line race-line sigil-thin" d="M35 60 H48 M72 60 H85 M60 35 V48 M60 72 V85" />
+                        <rect class="sigil-node race-node" x="34" y="32" width="5" height="5" rx="1" />
+                        <rect class="sigil-node race-node" x="81" y="82" width="5" height="5" rx="1" />
+                      </g>
+
+                      <g class="race race-abyss">
+                        <path class="sigil-line race-line" d="M60 88 L35 42 H85 Z" />
+                        <path class="sigil-line race-line sigil-thin" d="M35 42 C43 29 77 29 85 42 M43 83 L35 96 M77 83 L85 96" />
+                        <path class="sigil-line race-line" d="M45 56 L34 52 M75 56 L86 52 M60 88 L60 101" />
+                      </g>
+
+                      <g class="race race-celestial">
+                        <ellipse class="sigil-line race-line" cx="60" cy="34" rx="22" ry="7" />
+                        <path class="sigil-line race-line" d="M60 42 V88 M42 52 L78 52 M48 72 L72 72" />
+                        <path class="sigil-line race-line sigil-thin" d="M37 29 L31 20 M60 24 V12 M83 29 L89 20" />
+                        <circle class="sigil-node race-node" cx="60" cy="12" r="1.8" />
+                      </g>
+
+                      <g class="race race-beast">
+                        <path class="sigil-line race-line" d="M42 38 C45 56 48 69 55 84 M60 36 C60 56 60 72 60 91 M78 38 C75 56 72 69 65 84" />
+                        <path class="sigil-line race-line sigil-thin" d="M40 79 C49 69 71 69 80 79" />
+                        <circle class="sigil-node race-node" cx="42" cy="38" r="1.7" />
+                        <circle class="sigil-node race-node" cx="78" cy="38" r="1.7" />
+                      </g>
+
+                      <g class="race race-elemental">
+                        <path class="sigil-line race-line" d="M60 28 C77 34 85 52 78 68 C70 88 45 87 38 68 C33 54 40 36 60 28 Z" />
+                        <path class="sigil-line race-line sigil-thin" d="M44 66 C55 59 65 57 76 50 M48 79 C56 73 66 72 72 64" />
+                        <circle class="sigil-node race-node" cx="60" cy="28" r="1.8" />
+                        <circle class="sigil-node race-node" cx="38" cy="68" r="1.8" />
+                      </g>
+                    </g>
+
+                    <g class="role-layer" filter="url(#softGlow)">
+                      <g class="role role-occult">
+                        <path class="sigil-line role-line" d="M45 74 L60 42 L75 74 Z" />
+                        <path class="sigil-line role-line" d="M52 62 C55 57 65 57 68 62 C65 67 55 67 52 62 Z" />
+                        <circle class="sigil-node" cx="60" cy="62" r="1.7" />
+                      </g>
+
+                      <g class="role role-warrior">
+                        <path class="sigil-line role-line" d="M44 38 L76 82 M76 38 L44 82" />
+                        <path class="sigil-line role-line" d="M50 52 C55 48 65 48 70 52 L68 78 C64 84 56 84 52 78 Z" />
+                      </g>
+
+                      <g class="role role-noble">
+                        <path class="sigil-line role-line" d="M43 69 L48 47 L56 59 L60 39 L64 59 L72 47 L77 69 Z" />
+                        <path class="sigil-line role-line sigil-thin" d="M48 76 H72 M60 39 V86" />
+                        <circle class="sigil-node" cx="60" cy="39" r="1.8" />
+                      </g>
+
+                      <g class="role role-wanderer">
+                        <path class="sigil-line role-line" d="M39 74 C49 47 70 42 82 54 C67 57 54 67 45 87" />
+                        <path class="sigil-line role-line sigil-thin" d="M60 36 V48 M60 72 V84 M36 60 H48 M72 60 H84" />
+                      </g>
+
+                      <g class="role role-healer">
+                        <path class="sigil-line role-line" d="M60 38 C75 48 76 68 60 82 C44 68 45 48 60 38 Z" />
+                        <path class="sigil-line role-line" d="M60 48 V72 M50 60 H70" />
+                        <circle class="sigil-node" cx="60" cy="38" r="1.8" />
+                      </g>
+
+                      <g class="role role-scholar">
+                        <path class="sigil-line role-line" d="M40 45 C48 40 54 42 60 48 C66 42 72 40 80 45 V81 C72 76 66 77 60 84 C54 77 48 76 40 81 Z" />
+                        <path class="sigil-line role-line sigil-thin" d="M60 48 V84 M47 54 H55 M47 62 H55 M65 54 H73 M65 62 H73" />
+                      </g>
+
+                      <g class="role role-assassin">
+                        <path class="sigil-line role-line" d="M67 32 L75 40 L55 77 L45 88 L49 74 Z" />
+                        <path class="sigil-line role-line sigil-thin" d="M45 45 C58 35 72 38 82 52" />
+                        <circle class="sigil-node" cx="67" cy="32" r="1.7" />
+                      </g>
+
+                      <g class="role role-merchant">
+                        <path class="sigil-line role-line" d="M60 38 V84 M42 50 H78 M48 50 L39 72 H57 Z M72 50 L63 72 H81 Z" />
+                        <circle class="sigil-line role-line" cx="60" cy="88" r="5" />
+                        <circle class="sigil-node" cx="60" cy="38" r="1.8" />
+                      </g>
+                    </g>
+
+                    <g class="accent-layer">
+                      <g class="accent accent-fire">
+                        <path class="sigil-line accent-line" d="M60 93 C52 82 58 75 62 68 C72 80 68 88 60 93 Z" />
+                        <circle class="sigil-node accent-node" cx="62" cy="68" r="1.5" />
+                      </g>
+                      <g class="accent accent-water">
+                        <path class="sigil-line accent-line" d="M37 88 C46 80 54 96 63 88 C72 80 80 96 88 88" />
+                        <circle class="sigil-node accent-node" cx="37" cy="88" r="1.5" />
+                      </g>
+                      <g class="accent accent-ice">
+                        <path class="sigil-line accent-line" d="M87 31 L78 40 M87 40 L78 31 M82.5 27 V44.5 M74 35.5 H91" />
+                        <circle class="sigil-node accent-node" cx="82.5" cy="35.5" r="1.4" />
+                      </g>
+                      <g class="accent accent-wind">
+                        <path class="sigil-line accent-line" d="M30 41 C43 31 54 41 42 48 M34 59 C51 49 64 59 50 68" />
+                      </g>
+                      <g class="accent accent-thunder">
+                        <path class="sigil-line accent-line" d="M84 29 L72 55 H83 L65 91" />
+                        <circle class="sigil-node accent-node" cx="84" cy="29" r="1.4" />
+                      </g>
+                      <g class="accent accent-light">
+                        <path class="sigil-line accent-line" d="M60 16 L63 26 L73 29 L63 32 L60 42 L57 32 L47 29 L57 26 Z" />
+                        <circle class="sigil-node accent-node" cx="60" cy="16" r="1.4" />
+                      </g>
+                      <g class="accent accent-dark">
+                        <path class="sigil-line accent-line" d="M78 79 C64 82 54 72 58 58 C49 66 51 85 68 91 C74 89 78 84 78 79 Z" />
+                      </g>
+                      <g class="accent accent-wood">
+                        <path class="sigil-line accent-line" d="M31 76 C41 58 52 63 60 48 C68 63 79 58 89 76" />
+                        <path class="sigil-line accent-line sigil-thin" d="M60 48 V91" />
+                      </g>
+                    </g>
+                  </svg>
+                </div>
+              </div>
+
+              <section class="caption">
+                <h3 class="caption-title" id="captionTitle">Heraldic Noble Sigil</h3>
+                <p class="caption-text" id="hookOutput">她站在帝国旧星盘的中央，像一枚终于停止退让的金色棋子。</p>
+              </section>
+
+              <div class="attribute-flags" id="frontFlags" aria-label="属性旗帜"></div>
+            </div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const options = {
+        base: [
+          ["orbital", "Orbital 星轨"],
+          ["rectangular", "Rectangular 书契"],
+          ["floral", "Floral 花冠"],
+          ["ritual", "Ritual 仪式"],
+          ["weapon", "Weapon 兵装"],
+          ["circuit", "Circuit 回路"],
+        ],
+        race: [
+          ["human", "Human 人类"],
+          ["dragon", "Dragon 龙裔"],
+          ["elf", "Elf 精灵"],
+          ["construct", "Construct 构装"],
+          ["abyss", "Abyss 深渊"],
+          ["celestial", "Celestial 天界"],
+          ["beast", "Beast 兽族"],
+          ["elemental", "Elemental 元素"],
+        ],
+        role: [
+          ["occult", "Occult 秘仪"],
+          ["warrior", "Warrior 战士"],
+          ["noble", "Noble 贵胄"],
+          ["wanderer", "Wanderer 旅人"],
+          ["healer", "Healer 治疗"],
+          ["scholar", "Scholar 学者"],
+          ["assassin", "Assassin 刺客"],
+          ["merchant", "Merchant 商人"],
+        ],
+        accent: [
+          ["fire", "Fire 火"],
+          ["water", "Water 水"],
+          ["ice", "Ice 冰"],
+          ["wind", "Wind 风"],
+          ["thunder", "Thunder 雷"],
+          ["light", "Light 光"],
+          ["dark", "Dark 暗"],
+          ["wood", "Wood 木"],
+        ],
+      };
+
+      const tierColors = {
+        1: "#71717a",
+        2: "#50c878",
+        3: "#2196f3",
+        4: "#a855f7",
+        5: "#ffd700",
+        6: "#dc143c",
+        7: "#d9ffff",
+      };
+
+      const raceColors = {
+        human: "#d6a85d",
+        dragon: "#ff784f",
+        elf: "#87d986",
+        construct: "#70d6ff",
+        abyss: "#c084fc",
+        celestial: "#ffe8a3",
+        beast: "#e5a15a",
+        elemental: "#63e6be",
+      };
+
+      const accentColors = {
+        fire: "#ff7a3d",
+        water: "#4ea3ff",
+        ice: "#b7f4ff",
+        wind: "#a8f0c6",
+        thunder: "#f6e05e",
+        light: "#fff1a6",
+        dark: "#b197fc",
+        wood: "#8ee063",
+      };
+
+      const tierNames = {
+        1: "第一层级",
+        2: "第二层级",
+        3: "第三层级",
+        4: "第四层级",
+        5: "第五层级",
+        6: "第六层级",
+        7: "第七层级",
+      };
+
+      const samples = {
+        knight: {
+          name: "亚维斯・金盾",
+          level: "61",
+          raceLabel: "人类",
+          roleLabel: "圣盾骑士",
+          base: "weapon",
+          race: "human",
+          role: "warrior",
+          accent: "light",
+          tier: 6,
+          hook: "他的徽记不是画像，而是一道能被远远认出的六芒锋面。",
+          attrs: "力量:43, 守护:52, 意志:45, 统率:39, 信念:48",
+        },
+        mage: {
+          name: "露缇雅・星叶",
+          level: "33",
+          raceLabel: "月森精灵",
+          roleLabel: "星术法师",
+          base: "orbital",
+          race: "elf",
+          role: "occult",
+          accent: "wood",
+          tier: 3,
+          hook: "她的卡纹先露出菱形层级，再在内侧展开精灵式叶阵和星术三角。",
+          attrs: "智识:38, 灵感:42, 敏捷:29, 魔力:44, 感知:36",
+        },
+        construct: {
+          name: "构装记录器",
+          level: "41",
+          raceLabel: "构装体",
+          roleLabel: "神谕记录器",
+          base: "circuit",
+          race: "construct",
+          role: "scholar",
+          accent: "thunder",
+          tier: 4,
+          hook: "它记录每一次神谕误差，也记录人类在误差里做出的选择。",
+          attrs: "智识:51, 精密:44, 意志:32, 灵感:29, 稳定:47",
+        },
+      };
+
+      const ids = {
+        name: document.getElementById("nameInput"),
+        level: document.getElementById("levelInput"),
+        raceLabel: document.getElementById("raceLabelInput"),
+        roleLabel: document.getElementById("roleLabelInput"),
+        base: document.getElementById("baseSelect"),
+        race: document.getElementById("raceSelect"),
+        role: document.getElementById("roleSelect"),
+        accent: document.getElementById("accentSelect"),
+        tier: document.getElementById("tierInput"),
+        hook: document.getElementById("hookInput"),
+        attrs: document.getElementById("attrInput"),
+      };
+
+      const outputs = {
+        flipShell: document.getElementById("flipShell"),
+        card: document.getElementById("card"),
+        cardBack: document.getElementById("cardBack"),
+        sigil: document.getElementById("sigilRoot"),
+        backSigil: document.getElementById("backSigilRoot"),
+        name: document.getElementById("nameOutput"),
+        backName: document.getElementById("backNameOutput"),
+        level: document.getElementById("levelBadge"),
+        race: document.getElementById("raceOutput"),
+        backRace: document.getElementById("backRaceOutput"),
+        role: document.getElementById("roleOutput"),
+        backRole: document.getElementById("backRoleOutput"),
+        tier: document.getElementById("tierOutput"),
+        backTier: document.getElementById("backTierOutput"),
+        tierValue: document.getElementById("tierValue"),
+        hook: document.getElementById("hookOutput"),
+        caption: document.getElementById("captionTitle"),
+        combo: document.getElementById("comboReadout"),
+        color: document.getElementById("colorReadout"),
+        frontFlags: document.getElementById("frontFlags"),
+        backFlags: document.getElementById("backFlags"),
+        backFrame: document.getElementById("backFrame"),
+        frontFrame: document.getElementById("frontFrame"),
+        leftScript: document.getElementById("leftScript"),
+        rightScript: document.getElementById("rightScript"),
+      };
+
+      function hexToRgb(hex) {
+        const clean = hex.replace("#", "");
+        const r = parseInt(clean.slice(0, 2), 16);
+        const g = parseInt(clean.slice(2, 4), 16);
+        const b = parseInt(clean.slice(4, 6), 16);
+        return `${r}, ${g}, ${b}`;
+      }
+
+      function fillSelect(select, values, selected) {
+        select.innerHTML = values
+          .map(([value, label]) => `<option value="${value}"${value === selected ? " selected" : ""}>${label}</option>`)
+          .join("");
+      }
+
+      function replay() {
+        outputs.card.classList.remove("preview-redraw");
+        outputs.cardBack.classList.remove("preview-redraw");
+        void outputs.card.offsetWidth;
+        void outputs.cardBack.offsetWidth;
+        outputs.card.classList.add("preview-redraw");
+        outputs.cardBack.classList.add("preview-redraw");
+        window.setTimeout(() => {
+          outputs.card.classList.remove("preview-redraw");
+          outputs.cardBack.classList.remove("preview-redraw");
+        }, 1800);
+      }
+
+      function parseAttributeFlags(value) {
+        const fallback = [
+          ["力量", "31"],
+          ["敏捷", "27"],
+          ["智识", "44"],
+          ["意志", "39"],
+          ["魅力", "52"],
+        ];
+
+        const entries = String(value || "")
+          .split(/[,;，；\n]+/)
+          .map(part => part.trim())
+          .filter(Boolean)
+          .map(part => {
+            const pieces = part.split(/[:：=]/);
+            if (pieces.length < 2) return null;
+            const name = pieces.shift().trim();
+            const number = pieces.join(":").trim();
+            if (!name || !number) return null;
+            return [name, number];
+          })
+          .filter(Boolean);
+
+        return (entries.length ? entries : fallback).slice(0, 6);
+      }
+
+      function renderAttributeFlags(target, flags) {
+        target.innerHTML = flags
+          .map(([name, value]) => {
+            const safeName = name.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" })[char]);
+            const safeValue = value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" })[char]);
+            return `<div class="flag"><span class="flag-name">${safeName}</span><span class="flag-value">${safeValue}</span></div>`;
+          })
+          .join("");
+      }
+
+      function geometryPoint(radius, index, sides = 6, rotation = -90) {
+        const angle = ((rotation + (360 / sides) * index) * Math.PI) / 180;
+        return {
+          x: Number((60 + Math.cos(angle) * radius).toFixed(2)),
+          y: Number((60 + Math.sin(angle) * radius).toFixed(2)),
+        };
+      }
+
+      function geometryPoints(radius, sides = 6, rotation = -90) {
+        return Array.from({ length: sides }, (_item, index) => geometryPoint(radius, index, sides, rotation));
+      }
+
+      function pointList(points) {
+        return points.map(point => `${point.x},${point.y}`).join(" ");
+      }
+
+      function line(a, b, className = "sigil-line geometry-fine") {
+        return `<line class="${className}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" />`;
+      }
+
+      function poly(points, className = "sigil-line geometry-core") {
+        return `<polygon class="${className}" points="${pointList(points)}" />`;
+      }
+
+      function node(point, radius = 1.45, className = "sigil-node geometry-node") {
+        return `<circle class="${className}" cx="${point.x}" cy="${point.y}" r="${radius}" />`;
+      }
+
+      function starPoints(outerRadius, innerRadius, pointCount = 6, rotation = -90) {
+        return Array.from({ length: pointCount * 2 }, (_item, index) => {
+          const radius = index % 2 === 0 ? outerRadius : innerRadius;
+          const angle = ((rotation + (360 / (pointCount * 2)) * index) * Math.PI) / 180;
+          return {
+            x: Number((60 + Math.cos(angle) * radius).toFixed(2)),
+            y: Number((60 + Math.sin(angle) * radius).toFixed(2)),
+          };
+        });
+      }
+
+      function tierOuterShape(tier) {
+        const t = Number(tier) || 1;
+        if (t <= 1) {
+          const points = geometryPoints(53, 3, -90);
+          return {
+            name: "triangle frame",
+            points,
+            markup: [poly(points, "sigil-line geometry-core"), poly(geometryPoints(35, 3, -90), "sigil-line geometry-fine")],
+          };
+        }
+
+        if (t === 2) {
+          const points = geometryPoints(52, 6, -90);
+          return {
+            name: "circle frame",
+            points,
+            markup: [
+              `<circle class="sigil-line geometry-core" cx="60" cy="60" r="52" />`,
+              `<circle class="sigil-line geometry-fine" cx="60" cy="60" r="38" />`,
+            ],
+          };
+        }
+
+        if (t === 3) {
+          const points = geometryPoints(51, 4, -45);
+          return {
+            name: "diamond frame",
+            points,
+            markup: [poly(points, "sigil-line geometry-core"), poly(geometryPoints(36, 4, -45), "sigil-line geometry-fine")],
+          };
+        }
+
+        if (t === 4) {
+          const points = geometryPoints(52, 5, -90);
+          return {
+            name: "pentagon frame",
+            points,
+            markup: [
+              poly(points, "sigil-line geometry-core"),
+              poly(geometryPoints(39, 5, -90), "sigil-line geometry-fine"),
+              `<circle class="sigil-line geometry-fine" cx="60" cy="60" r="45" />`,
+            ],
+          };
+        }
+
+        if (t === 5) {
+          const points = geometryPoints(53, 6, -90);
+          return {
+            name: "hexagon frame",
+            points,
+            markup: [poly(points, "sigil-line geometry-core"), poly(geometryPoints(41, 6, -90), "sigil-line geometry-fine")],
+          };
+        }
+
+        if (t === 6) {
+          const points = starPoints(56, 34, 6, -90);
+          return {
+            name: "six-star frame",
+            points,
+            markup: [
+              poly(points, "sigil-line geometry-core"),
+              poly(geometryPoints(43, 6, -90), "sigil-line geometry-fine"),
+              `<circle class="sigil-line geometry-fine" cx="60" cy="60" r="48" />`,
+            ],
+          };
+        }
+
+        const points = geometryPoints(54, 8, -90);
+        return {
+          name: "octagonal crown frame",
+          points,
+          markup: [
+            poly(points, "sigil-line geometry-core"),
+            poly(starPoints(49, 36, 8, -90), "sigil-line geometry-fine"),
+            `<circle class="sigil-line geometry-fine outer-rotation" cx="60" cy="60" r="55" stroke-dasharray="2 7" />`,
+          ],
+        };
+      }
+
+      function buildGeometrySigil({ base, race, role, accent, tier }) {
+        const tierShape = tierOuterShape(tier);
+        const hexOuter = geometryPoints(53, 6, -90);
+        const mid = geometryPoints(41, 6, -90);
+        const inner = geometryPoints(27, 6, -90);
+        const rotated = geometryPoints(41, 6, -60);
+        const square = geometryPoints(34, 4, -45);
+        const oct = geometryPoints(48, 8, -90);
+        const center = { x: 60, y: 60 };
+        const density = Math.min(5, Math.max(1, Number(tier) - 1));
+        const parts = [];
+
+        parts.push('<svg class="geometry-sigil" viewBox="0 0 120 120" role="img">');
+        tierShape.markup.forEach(item => parts.push(item));
+        if (tier >= 4) parts.push(poly(rotated, "sigil-line geometry-fine"));
+
+        tierShape.points.forEach((point, index) => {
+          parts.push(line(point, center, "sigil-line geometry-fine"));
+          if (tierShape.points.length > 4) parts.push(line(point, tierShape.points[(index + 2) % tierShape.points.length], "sigil-line geometry-fine"));
+        });
+
+        hexOuter.forEach((point, index) => {
+          if (index % 2 === 0 || density >= 3) parts.push(line(point, center, "sigil-line geometry-fine"));
+        });
+
+        for (let index = 0; index < density; index += 1) {
+          parts.push(line(mid[index], mid[(index + 3) % 6], "sigil-line geometry-fine"));
+        }
+
+        if (base === "orbital") {
+          parts.push(`<ellipse class="sigil-line geometry-secondary" cx="60" cy="60" rx="48" ry="16" />`);
+          parts.push(`<ellipse class="sigil-line geometry-secondary" cx="60" cy="60" rx="16" ry="48" transform="rotate(60 60 60)" />`);
+          parts.push(poly(inner, "sigil-line geometry-accent"));
+        } else if (base === "rectangular") {
+          parts.push(poly(square, "sigil-line geometry-secondary"));
+          parts.push(poly(geometryPoints(45, 4, 0), "sigil-line geometry-fine"));
+          square.forEach((point, index) => parts.push(line(point, square[(index + 2) % 4], "sigil-line geometry-fine")));
+        } else if (base === "floral") {
+          parts.push(poly(oct, "sigil-line geometry-secondary"));
+          oct.forEach((point, index) => parts.push(line(point, oct[(index + 3) % 8], index % 2 ? "sigil-line geometry-fine" : "sigil-line geometry-accent")));
+        } else if (base === "ritual") {
+          parts.push(poly([hexOuter[0], hexOuter[2], hexOuter[4]], "sigil-line geometry-secondary"));
+          parts.push(poly([hexOuter[1], hexOuter[3], hexOuter[5]], "sigil-line geometry-secondary"));
+          parts.push(`<circle class="sigil-line geometry-fine" cx="60" cy="60" r="18" />`);
+        } else if (base === "weapon") {
+          parts.push(line(hexOuter[0], hexOuter[3], "sigil-line geometry-core"));
+          parts.push(line(hexOuter[1], hexOuter[4], "sigil-line geometry-secondary"));
+          parts.push(line(hexOuter[2], hexOuter[5], "sigil-line geometry-secondary"));
+          parts.push(poly([inner[0], inner[2], inner[3], inner[4]], "sigil-line geometry-accent"));
+        } else if (base === "circuit") {
+          const grid = [
+            [{ x: 34, y: 42 }, { x: 50, y: 42 }, { x: 50, y: 32 }],
+            [{ x: 70, y: 32 }, { x: 70, y: 48 }, { x: 86, y: 48 }],
+            [{ x: 34, y: 78 }, { x: 50, y: 78 }, { x: 50, y: 62 }, { x: 70, y: 62 }, { x: 70, y: 78 }, { x: 86, y: 78 }],
+          ];
+          grid.forEach(points => parts.push(`<polyline class="sigil-line geometry-secondary" points="${pointList(points)}" />`));
+          parts.push(`<rect class="sigil-line geometry-accent" x="51" y="51" width="18" height="18" rx="1.5" />`);
+        }
+
+        if (race === "dragon") {
+          parts.push(`<polyline class="sigil-line race-line" points="${pointList([hexOuter[4], inner[5], center, inner[1], hexOuter[2]])}" />`);
+          parts.push(line(mid[5], hexOuter[0], "sigil-line race-line"));
+          parts.push(line(mid[1], hexOuter[0], "sigil-line race-line"));
+        } else if (race === "elf") {
+          parts.push(poly(geometryPoints(36, 3, -90), "sigil-line race-line"));
+          parts.push(poly(geometryPoints(36, 3, 90), "sigil-line race-line"));
+        } else if (race === "construct") {
+          parts.push(`<polyline class="sigil-line race-line" points="28,60 46,60 46,46 60,46 60,28" />`);
+          parts.push(`<polyline class="sigil-line race-line" points="92,60 74,60 74,74 60,74 60,92" />`);
+        } else if (race === "abyss") {
+          parts.push(poly([hexOuter[3], inner[1], inner[5]], "sigil-line race-line"));
+          parts.push(`<path class="sigil-line race-line" d="M32 88 L43 76 M88 88 L77 76" />`);
+        } else if (race === "celestial") {
+          hexOuter.forEach((point, index) => {
+            if (index % 2 === 0) parts.push(line(point, center, "sigil-line race-line"));
+          });
+          parts.push(`<circle class="sigil-line race-line" cx="60" cy="60" r="35" stroke-dasharray="2 6" />`);
+        } else if (race === "beast") {
+          parts.push(line({ x: 38, y: 30 }, { x: 52, y: 92 }, "sigil-line race-line"));
+          parts.push(line({ x: 60, y: 28 }, { x: 60, y: 94 }, "sigil-line race-line"));
+          parts.push(line({ x: 82, y: 30 }, { x: 68, y: 92 }, "sigil-line race-line"));
+        } else if (race === "elemental") {
+          parts.push(`<polyline class="sigil-line race-line" points="60,25 74,54 63,54 76,94 46,58 58,58 44,26" />`);
+        } else {
+          parts.push(poly(inner, "sigil-line race-line"));
+        }
+
+        if (role === "noble") {
+          parts.push(`<polyline class="sigil-line role-line" points="40,72 48,47 56,60 60,38 64,60 72,47 80,72" />`);
+        } else if (role === "warrior") {
+          parts.push(line({ x: 38, y: 36 }, { x: 82, y: 84 }, "sigil-line role-line"));
+          parts.push(line({ x: 82, y: 36 }, { x: 38, y: 84 }, "sigil-line role-line"));
+        } else if (role === "occult") {
+          parts.push(poly([inner[0], inner[2], inner[4]], "sigil-line role-line"));
+          parts.push(poly([inner[1], inner[3], inner[5]], "sigil-line role-line"));
+        } else if (role === "scholar") {
+          parts.push(`<rect class="sigil-line role-line" x="42" y="42" width="36" height="36" rx="1" />`);
+          parts.push(line({ x: 60, y: 42 }, { x: 60, y: 78 }, "sigil-line role-line"));
+        } else if (role === "merchant") {
+          parts.push(line({ x: 60, y: 35 }, { x: 60, y: 86 }, "sigil-line role-line"));
+          parts.push(line({ x: 39, y: 50 }, { x: 81, y: 50 }, "sigil-line role-line"));
+          parts.push(`<circle class="sigil-line role-line" cx="48" cy="73" r="8" />`);
+          parts.push(`<circle class="sigil-line role-line" cx="72" cy="73" r="8" />`);
+        } else if (role === "assassin") {
+          parts.push(`<polyline class="sigil-line role-line" points="73,30 82,39 55,82 42,91 49,74" />`);
+        } else if (role === "healer") {
+          parts.push(`<circle class="sigil-line role-line" cx="60" cy="60" r="14" />`);
+          parts.push(line({ x: 60, y: 42 }, { x: 60, y: 78 }, "sigil-line role-line"));
+          parts.push(line({ x: 42, y: 60 }, { x: 78, y: 60 }, "sigil-line role-line"));
+        } else if (role === "wanderer") {
+          parts.push(poly(geometryPoints(30, 4, -90), "sigil-line role-line"));
+          parts.push(line({ x: 60, y: 30 }, { x: 82, y: 60 }, "sigil-line role-line"));
+        }
+
+        if (accent !== "none") {
+          const accentPoints = geometryPoints(14 + tier * 2, 6, -30);
+          parts.push(poly(accentPoints, "sigil-line accent-line geometry-accent"));
+        }
+
+        tierShape.points.forEach(point => parts.push(node(point, tier >= 5 ? 1.65 : 1.35, "sigil-node race-node geometry-node")));
+        mid.forEach((point, index) => {
+          if (index % 2 === 0 || tier >= 5) parts.push(node(point, 1.15, "sigil-node geometry-node"));
+        });
+        parts.push(node(center, 2.4, "sigil-node accent-node geometry-node"));
+        parts.push("</svg>");
+        return parts.join("");
+      }
+
+      function motifSvg(type, strokeClass = "sigil-line geometry-secondary") {
+        const stroke = type === "accent" ? "sigil-line geometry-accent" : strokeClass;
+        const motif = [];
+        motif.push('<svg viewBox="0 0 64 64">');
+        if (type === "hex-lattice") {
+          motif.push(`<polygon class="${stroke}" points="32,5 55,18 55,46 32,59 9,46 9,18" />`);
+          motif.push(`<polygon class="sigil-line geometry-fine" points="32,12 49,22 49,42 32,52 15,42 15,22" />`);
+          motif.push(`<line class="sigil-line geometry-fine" x1="32" y1="5" x2="32" y2="59" />`);
+          motif.push(`<line class="sigil-line geometry-fine" x1="9" y1="18" x2="55" y2="46" />`);
+          motif.push(`<line class="sigil-line geometry-fine" x1="55" y1="18" x2="9" y2="46" />`);
+        } else if (type === "star") {
+          motif.push(`<polygon class="${stroke}" points="32,6 39,24 58,24 43,36 49,56 32,44 15,56 21,36 6,24 25,24" />`);
+          motif.push(`<polygon class="sigil-line geometry-fine" points="32,16 46,48 14,48" />`);
+          motif.push(`<polygon class="sigil-line geometry-fine" points="32,52 18,20 50,20" />`);
+        } else if (type === "flower") {
+          motif.push(`<circle class="${stroke}" cx="32" cy="32" r="25" />`);
+          [0, 60, 120, 180, 240, 300].forEach(angle => {
+            motif.push(`<ellipse class="sigil-line geometry-fine" cx="32" cy="32" rx="10" ry="24" transform="rotate(${angle} 32 32)" />`);
+          });
+        } else if (type === "diamond") {
+          motif.push(`<polygon class="${stroke}" points="32,5 58,32 32,59 6,32" />`);
+          motif.push(`<polygon class="sigil-line geometry-fine" points="32,14 49,32 32,50 15,32" />`);
+          motif.push(`<line class="sigil-line geometry-fine" x1="32" y1="5" x2="32" y2="59" />`);
+          motif.push(`<line class="sigil-line geometry-fine" x1="6" y1="32" x2="58" y2="32" />`);
+        } else if (type === "cube") {
+          motif.push(`<polygon class="${stroke}" points="32,7 54,20 54,44 32,57 10,44 10,20" />`);
+          motif.push(`<polyline class="sigil-line geometry-fine" points="32,7 32,32 54,20" />`);
+          motif.push(`<polyline class="sigil-line geometry-fine" points="32,32 10,20" />`);
+          motif.push(`<polyline class="sigil-line geometry-fine" points="32,32 32,57" />`);
+        } else if (type === "triangle") {
+          motif.push(`<polygon class="${stroke}" points="32,5 58,55 6,55" />`);
+          motif.push(`<polygon class="sigil-line geometry-fine" points="32,18 47,47 17,47" />`);
+          motif.push(`<line class="sigil-line geometry-fine" x1="32" y1="5" x2="32" y2="55" />`);
+        } else if (type === "rings") {
+          motif.push(`<circle class="${stroke}" cx="32" cy="32" r="25" />`);
+          motif.push(`<circle class="sigil-line geometry-fine" cx="32" cy="32" r="16" />`);
+          motif.push(`<circle class="sigil-line geometry-fine" cx="32" cy="32" r="7" />`);
+          motif.push(`<polygon class="sigil-line geometry-accent" points="32,8 53,44 11,44" />`);
+        } else {
+          motif.push(`<polygon class="${stroke}" points="32,6 56,32 32,58 8,32" />`);
+          motif.push(`<polygon class="sigil-line geometry-fine" points="32,12 50,32 32,52 14,32" />`);
+        }
+        motif.push(`<circle class="sigil-node geometry-node" cx="32" cy="32" r="1.8" />`);
+        motif.push("</svg>");
+        return motif.join("");
+      }
+
+      function selectMotifs({ base, race, role, accent }) {
+        const baseMap = {
+          orbital: "rings",
+          rectangular: "diamond",
+          floral: "flower",
+          ritual: "star",
+          weapon: "triangle",
+          circuit: "cube",
+        };
+        const raceMap = {
+          dragon: "hex-lattice",
+          elf: "flower",
+          construct: "cube",
+          abyss: "triangle",
+          celestial: "star",
+          beast: "diamond",
+          elemental: "rings",
+          human: "hex-lattice",
+        };
+        const roleMap = {
+          noble: "star",
+          warrior: "triangle",
+          occult: "rings",
+          wanderer: "diamond",
+          healer: "flower",
+          scholar: "cube",
+          assassin: "triangle",
+          merchant: "hex-lattice",
+        };
+        return [
+          baseMap[base] || "hex-lattice",
+          raceMap[race] || "diamond",
+          roleMap[role] || "rings",
+          accent === "wood" ? "flower" : accent === "thunder" ? "triangle" : accent === "ice" ? "diamond" : "rings",
+          "hex-lattice",
+          "star",
+          "cube",
+          "flower",
+        ];
+      }
+
+      function renderFrameMotifs(target, tokens, compact = false) {
+        const slots = compact
+          ? ["motif-corner-tl", "motif-corner-tr", "motif-corner-bl", "motif-corner-br"]
+          : ["motif-corner-tl", "motif-corner-tr", "motif-corner-bl", "motif-corner-br", "motif-side-left", "motif-side-right", "motif-top", "motif-bottom"];
+        const motifs = selectMotifs(tokens);
+        target.innerHTML = slots
+          .map((slot, index) => `<div class="mini-motif ${slot}">${motifSvg(motifs[index % motifs.length], index % 3 === 0 ? "sigil-line geometry-accent" : "sigil-line geometry-secondary")}</div>`)
+          .join("");
+      }
+
+      function setFrontVisible(isVisible) {
+        outputs.flipShell.classList.toggle("is-front", isVisible);
+        if (isVisible) {
+          outputs.card.querySelector("#hideBtn").focus();
+        } else {
+          outputs.cardBack.focus();
+        }
+        replay();
+      }
+
+      function applyState(shouldReplay = false) {
+        const tier = Number(ids.tier.value || 1);
+        const base = ids.base.value;
+        const race = ids.race.value;
+        const role = ids.role.value;
+        const accent = ids.accent.value;
+
+        const tierHex = tierColors[tier] || tierColors[1];
+        const raceHex = raceColors[race] || raceColors.human;
+        const accentHex = accentColors[accent] || accentColors.light;
+
+        document.documentElement.style.setProperty("--tier-color", tierHex);
+        document.documentElement.style.setProperty("--tier-color-rgb", hexToRgb(tierHex));
+        document.documentElement.style.setProperty("--race-color", raceHex);
+        document.documentElement.style.setProperty("--race-color-rgb", hexToRgb(raceHex));
+        document.documentElement.style.setProperty("--accent-color", accentHex);
+        document.documentElement.style.setProperty("--accent-color-rgb", hexToRgb(accentHex));
+
+        outputs.card.className = `npc-card card-face card-front-face tier-${tier}`;
+        outputs.cardBack.className = `card-back card-face card-back-face tier-${tier}`;
+        outputs.sigil.className = `tarot-sigil-root base-${base} race-${race} role-${role} accent-${accent} tier-${tier}`;
+        outputs.backSigil.className = `tarot-sigil-root back-sigil-mark base-${base} race-${race} role-${role} accent-${accent} tier-${tier}`;
+        const geometryMarkup = buildGeometrySigil({ base, race, role, accent, tier });
+        outputs.sigil.innerHTML = geometryMarkup;
+        outputs.backSigil.innerHTML = geometryMarkup;
+
+        const name = ids.name.value || "未命名";
+        const raceLabel = ids.raceLabel.value || race;
+        const roleLabel = ids.roleLabel.value || role;
+        const flags = parseAttributeFlags(ids.attrs.value);
+        const tierFrame = tierOuterShape(tier).name;
+
+        outputs.name.textContent = name;
+        outputs.backName.textContent = name;
+        outputs.level.textContent = `Lv.${ids.level.value || "?"}`;
+        outputs.race.textContent = raceLabel;
+        outputs.backRace.textContent = raceLabel;
+        outputs.role.textContent = roleLabel;
+        outputs.backRole.textContent = roleLabel;
+        outputs.tier.textContent = tierNames[tier];
+        outputs.backTier.textContent = tierNames[tier];
+        outputs.tierValue.textContent = tier;
+        outputs.hook.textContent = ids.hook.value || "这个角色暂时还没有钩子句。";
+        outputs.caption.textContent = `${tierFrame} / ${race} material / ${role} core`;
+        outputs.combo.textContent = `outer=${tierFrame} / base-${base} / race-${race} / role-${role} / accent-${accent}`;
+        outputs.color.textContent = `${tierHex} / ${raceHex} / ${accentHex}`;
+        renderAttributeFlags(outputs.frontFlags, flags);
+        renderAttributeFlags(outputs.backFlags, flags);
+        renderFrameMotifs(outputs.backFrame, { base, race, role, accent }, false);
+        renderFrameMotifs(outputs.frontFrame, { base, race, role, accent }, true);
+        outputs.leftScript.textContent = `${base} / ${race} / ${accent}`;
+        outputs.rightScript.textContent = `${role} / ${tierNames[tier]} / Lv.${ids.level.value || "?"}`;
+
+        if (shouldReplay) replay();
+      }
+
+      function setSample(sample) {
+        ids.name.value = sample.name;
+        ids.level.value = sample.level;
+        ids.raceLabel.value = sample.raceLabel;
+        ids.roleLabel.value = sample.roleLabel;
+        ids.base.value = sample.base;
+        ids.race.value = sample.race;
+        ids.role.value = sample.role;
+        ids.accent.value = sample.accent;
+        ids.tier.value = sample.tier;
+        ids.hook.value = sample.hook;
+        ids.attrs.value = sample.attrs;
+        applyState(true);
+      }
+
+      function randomize() {
+        const pick = group => group[Math.floor(Math.random() * group.length)][0];
+        ids.base.value = pick(options.base);
+        ids.race.value = pick(options.race);
+        ids.role.value = pick(options.role);
+        ids.accent.value = pick(options.accent);
+        ids.tier.value = String(Math.floor(Math.random() * 7) + 1);
+        applyState(true);
+      }
+
+      fillSelect(ids.base, options.base, "orbital");
+      fillSelect(ids.race, options.race, "human");
+      fillSelect(ids.role, options.role, "noble");
+      fillSelect(ids.accent, options.accent, "light");
+
+      Object.values(ids).forEach(input => input.addEventListener("input", () => applyState()));
+      document.getElementById("redrawBtn").addEventListener("click", replay);
+      document.getElementById("randomizeBtn").addEventListener("click", randomize);
+      document.getElementById("sampleKnightBtn").addEventListener("click", () => setSample(samples.knight));
+      document.getElementById("sampleMageBtn").addEventListener("click", () => setSample(samples.mage));
+      document.getElementById("sampleConstructBtn").addEventListener("click", () => setSample(samples.construct));
+      document.getElementById("revealBtn").addEventListener("click", event => {
+        event.stopPropagation();
+        setFrontVisible(true);
+      });
+      document.getElementById("hideBtn").addEventListener("click", () => setFrontVisible(false));
+      outputs.cardBack.addEventListener("click", () => setFrontVisible(true));
+      outputs.cardBack.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setFrontVisible(true);
+        }
+      });
+
+      applyState(true);
+    </script>
+  </body>
+</html>

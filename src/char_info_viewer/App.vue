@@ -30,7 +30,7 @@
       </div>
     </div>
 
-    <div v-else-if="sheetData" :class="wrapperClasses">
+    <div v-else-if="sheetData" :class="[wrapperClasses, { 'portrait-mode': isPortraitLayout }]">
       <div class="frame-layer" :class="{ show: tierNumber >= 5 }" aria-hidden="true">
         <svg class="frame-svg frame-top" viewBox="0 0 400 100" preserveAspectRatio="none">
           <path d="M 5,100 A 195,80 0 0,1 395,100" />
@@ -59,7 +59,7 @@
       </div>
 
       <div class="sheet-content-wrapper">
-        <header class="sheet-header">
+        <header v-if="!isPortraitLayout" class="sheet-header">
           <span class="level-badge">Lv.{{ levelText }}</span>
           <h1 class="char-name">{{ nameText }}</h1>
           <div class="char-meta-row">
@@ -73,38 +73,69 @@
           </div>
         </header>
 
-        <div class="sheet-body">
-          <div class="attributes-grid">
-            <div
-              v-for="attr in attributes"
-              :key="attr.key"
-              class="attribute-item"
-              :class="{
-                'show-formula': attr.showFormula,
-                'has-formula': !!attr.formula,
-                'has-warning': attr.isTotalAbnormal || attr.hasFormulaWarning,
-              }"
-              @click="toggleAttributeFormula(attr.key)"
-            >
-              <span class="attribute-name">{{ attr.short }}</span>
-              <span class="attribute-total" :class="{ 'is-warning': attr.isTotalAbnormal }">{{ attr.total }}</span>
-              <span v-if="attr.formula" class="attribute-formula">
-                <template v-for="part in attr.formulaParts" :key="`${attr.key}-${part.index}-${part.text}`">
-                  <span v-if="part.index > 0" class="formula-part-separator">+</span>
-                  <span class="formula-part" :class="{ 'formula-part-warning': part.isWarning }">{{ part.text }}</span>
-                </template>
-              </span>
+        <div class="sheet-body" :class="{ 'portrait-body': isPortraitLayout, 'is-detail-tab': isPortraitDetailTab }">
+          <section v-if="isPortraitLayout" class="portrait-main-panel">
+            <div class="portrait-image-shell">
+              <img class="portrait-image" :src="portraitImageUrl" :alt="nameText" />
             </div>
-          </div>
-
-          <div v-if="resourceBoxes.length > 0" class="resource-grid">
-            <div v-for="resource in resourceBoxes" :key="resource.key" class="resource-item">
-              <span class="resource-name">{{ resource.label }}</span>
-              <span class="resource-value">{{ resource.value }}</span>
+            <div class="portrait-info-panel">
+              <span class="level-badge portrait-level-badge">Lv.{{ levelText }}</span>
+              <h1 class="char-name portrait-name">{{ nameText }}</h1>
+              <div class="char-meta-row portrait-meta-row">
+                <span>{{ raceText }}</span>
+                <span class="meta-separator">◆</span>
+                <span>{{ identityText }}</span>
+                <span class="meta-separator">◆</span>
+                <span>{{ classText }}</span>
+                <span class="meta-separator">◆</span>
+                <span class="tier-name">{{ tierText }}</span>
+              </div>
+              <div class="portrait-compact-stats">
+                <span v-for="attr in attributes" :key="`portrait-${attr.key}`">
+                  {{ attr.short }} {{ attr.total }}
+                </span>
+              </div>
+              <div v-if="resourceBoxes.length > 0" class="portrait-compact-resources">
+                <span v-for="resource in resourceBoxes" :key="resource.key">
+                  {{ resource.label }} {{ resource.value }}
+                </span>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div class="tab-nav">
+          <template v-else>
+            <div class="attributes-grid">
+              <div
+                v-for="attr in attributes"
+                :key="attr.key"
+                class="attribute-item"
+                :class="{
+                  'show-formula': attr.showFormula,
+                  'has-formula': !!attr.formula,
+                  'has-warning': attr.isTotalAbnormal || attr.hasFormulaWarning,
+                }"
+                @click="toggleAttributeFormula(attr.key)"
+              >
+                <span class="attribute-name">{{ attr.short }}</span>
+                <span class="attribute-total" :class="{ 'is-warning': attr.isTotalAbnormal }">{{ attr.total }}</span>
+                <span v-if="attr.formula" class="attribute-formula">
+                  <template v-for="part in attr.formulaParts" :key="`${attr.key}-${part.index}-${part.text}`">
+                    <span v-if="part.index > 0" class="formula-part-separator">+</span>
+                    <span class="formula-part" :class="{ 'formula-part-warning': part.isWarning }">{{ part.text }}</span>
+                  </template>
+                </span>
+              </div>
+            </div>
+
+            <div v-if="resourceBoxes.length > 0" class="resource-grid">
+              <div v-for="resource in resourceBoxes" :key="resource.key" class="resource-item">
+                <span class="resource-name">{{ resource.label }}</span>
+                <span class="resource-value">{{ resource.value }}</span>
+              </div>
+            </div>
+          </template>
+
+          <div :class="isPortraitLayout ? 'portrait-tab-nav' : 'tab-nav'">
             <button
               v-for="tab in visibleTabs"
               :key="tab.key"
@@ -116,7 +147,7 @@
             </button>
           </div>
 
-          <section class="tab-content">
+          <section v-if="!isPortraitLayout || activeTab !== 'profile'" class="tab-content">
             <template v-if="activeTab === 'profile'">
               <div class="profile-grid">
                 <div class="profile-row">
@@ -384,37 +415,33 @@ import {
   getAttributeRawValue,
   splitAttributeFormula,
 } from './services/attributeWarning';
-import { getSmartArray, hasArrayContent, hasText, normalizeDisplayText } from './services/common';
+import {
+  buildCharacterViewModel,
+  itemCost,
+  itemDescription,
+  itemEffectEntries,
+  itemEffectEntriesOrDescription,
+  itemEffectOrDescription,
+  itemName,
+  itemQuality,
+  itemTags,
+  itemType,
+  lawActive,
+  lawPassive,
+  pickField,
+  qualityClass,
+  statusEffectDescription,
+  statusEffectDuration,
+  statusEffectLayers,
+  statusEffectSource,
+  statusEffectType,
+  type TabKey,
+} from './services/characterViewModel';
 import { importToMvuVariables, saveToChatWorldbook } from './services/importService';
 import { createParticleEngine, type ParticleEngine } from './services/particleEngine';
 import { applyTheme, resolveTheme } from './services/themeService';
 import { parseCharacterYaml } from './services/yamlParser';
 import type { CharacterData, FriendlyYamlError, ThemeResolved } from './types';
-
-type TabKey = 'profile' | 'skills' | 'equipment' | 'inventory' | 'divinity' | 'backstory' | 'statusEffects';
-
-type ViewTab = {
-  key: TabKey;
-  label: string;
-};
-
-type ItemObject = Record<string, any>;
-
-type ResourceBox = {
-  key: 'HP' | 'SP' | 'MP';
-  label: 'HP' | 'SP' | 'MP';
-  value: string;
-};
-
-const tabOrder: ViewTab[] = [
-  { key: 'profile', label: '档案' },
-  { key: 'skills', label: '技能' },
-  { key: 'equipment', label: '装备' },
-  { key: 'inventory', label: '背包' },
-  { key: 'divinity', label: '登神长阶' },
-  { key: 'backstory', label: '背景故事' },
-  { key: 'statusEffects', label: '状态效果' },
-];
 
 const sheetData = ref<CharacterData | null>(null);
 const parseError = ref<FriendlyYamlError | null>(null);
@@ -456,78 +483,22 @@ const wrapperClasses = computed(() => ({
   'high-tier': tierNumber.value >= 5,
 }));
 
-function pickField(source: unknown, ...keys: string[]): unknown {
-  if (!source || typeof source !== 'object') return undefined;
-  const obj = source as Record<string, unknown>;
-  for (const key of keys) {
-    const value = obj[key];
-    if (value !== undefined && value !== null) return value;
-  }
-  return undefined;
-}
-
-const nameText = computed(() => normalizeDisplayText(pickField(sheetData.value, '姓名') || 'Unknown'));
-const levelText = computed(() => normalizeDisplayText(pickField(sheetData.value, '等级', '等级') ?? '?'));
-const raceText = computed(() => normalizeDisplayText(pickField(sheetData.value, '种族', '种族') || '其他'));
-const tierText = computed(() => normalizeDisplayText(pickField(sheetData.value, '生命层级', '生命层级') || 'Unknown'));
-
-const identityText = computed(() => getSmartArray(pickField(sheetData.value, '身份')).join(' / ') || '-');
-const classText = computed(() => getSmartArray(pickField(sheetData.value, '职业', '职业')).join(' / ') || '-');
-
-const personalityText = computed(() => {
-  const val = pickField(sheetData.value, '性格');
-  if (!val) return '';
-  return Array.isArray(val)
-    ? val
-        .map(item => normalizeDisplayText(item))
-        .filter(Boolean)
-        .join('，')
-    : normalizeDisplayText(val);
-});
-
-const likesText = computed(() => {
-  const tags = getSmartArray(pickField(sheetData.value, '喜爱', '喜爱'))
-    .map(tag => tag.trim().replace(/。+$/g, '').trim())
-    .filter(Boolean);
-  return tags.join('，');
-});
-
-const appearanceText = computed(() => normalizeDisplayText(pickField(sheetData.value, '外貌特质', '外貌特质') || ''));
-const attireText = computed(() => normalizeDisplayText(pickField(sheetData.value, '衣物装饰', '衣物装饰') || ''));
-const backstoryText = computed(() => normalizeDisplayText(pickField(sheetData.value, '背景故事') || ''));
-
-function textFromUnknown(value: unknown): string {
-  if (value === undefined || value === null) return '';
-  if (typeof value === 'string') return normalizeDisplayText(value);
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) {
-    return value
-      .map(v => textFromUnknown(v))
-      .filter(Boolean)
-      .join(' / ');
-  }
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .map(([key, val]) => {
-        const content = textFromUnknown(val);
-        return content ? `${key}: ${content}` : '';
-      })
-      .filter(Boolean);
-    return entries.join('； ');
-  }
-  return String(value);
-}
-
-const resourceBoxes = computed<ResourceBox[]>(() => {
-  const resourceObj = (pickField(sheetData.value, '资源', '资源') || {}) as Record<string, unknown>;
-  const resourceEntries: ResourceBox[] = [
-    { key: 'HP', label: 'HP', value: textFromUnknown(resourceObj.HP) },
-    { key: 'SP', label: 'SP', value: textFromUnknown(resourceObj.SP) },
-    { key: 'MP', label: 'MP', value: textFromUnknown(resourceObj.MP) },
-  ];
-
-  return resourceEntries.filter(resource => hasText(resource.value));
-});
+const vm = computed(() => (sheetData.value ? buildCharacterViewModel(sheetData.value) : null));
+const isPortraitLayout = computed(() => vm.value?.layoutKind === 'portrait');
+const isPortraitDetailTab = computed(() => isPortraitLayout.value && activeTab.value !== 'profile');
+const portraitImageUrl = computed(() => vm.value?.imageUrl || '');
+const nameText = computed(() => vm.value?.nameText || 'Unknown');
+const levelText = computed(() => vm.value?.levelText || '?');
+const raceText = computed(() => vm.value?.raceText || '其他');
+const tierText = computed(() => vm.value?.tierText || 'Unknown');
+const identityText = computed(() => vm.value?.identityText || '-');
+const classText = computed(() => vm.value?.classText || '-');
+const personalityText = computed(() => vm.value?.personalityText || '');
+const likesText = computed(() => vm.value?.likesText || '');
+const appearanceText = computed(() => vm.value?.appearanceText || '');
+const attireText = computed(() => vm.value?.attireText || '');
+const backstoryText = computed(() => vm.value?.backstoryText || '');
+const resourceBoxes = computed(() => vm.value?.resourceBoxes || []);
 
 const attributeFormulaState = ref<Record<string, boolean>>({});
 
@@ -565,283 +536,19 @@ function toggleAttributeFormula(key: string) {
   };
 }
 
-function asObjectArray(input: unknown): ItemObject[] {
-  if (!Array.isArray(input)) return [];
-  return input.filter(item => item && typeof item === 'object') as ItemObject[];
-}
-
-function asNamedObjectArray(input: unknown): ItemObject[] {
-  if (Array.isArray(input)) return asObjectArray(input);
-  if (!input || typeof input !== 'object') return [];
-
-  return Object.entries(input as Record<string, unknown>)
-    .filter(([, value]) => value && typeof value === 'object')
-    .map(([name, value]) => {
-      const item = value as Record<string, unknown>;
-      return {
-        ...item,
-        名称: textFromUnknown(item.名称) || name,
-      } as ItemObject;
-    });
-}
-
-type EffectEntry = {
-  name: string;
-  content: string;
-  fallback: boolean;
-};
-
-function parseNamedEffectLine(line: string): EffectEntry | null {
-  const normalized = normalizeDisplayText(line);
-  if (!normalized) return null;
-
-  const bracketMatch = normalized.match(/^\[([^\]]+)\]\s*[：:]\s*(.*)$/);
-  if (bracketMatch) {
-    const name = normalizeDisplayText(bracketMatch[1]);
-    const content = normalizeDisplayText(bracketMatch[2]);
-    if (name && content) return { name, content, fallback: false };
-    return null;
-  }
-
-  const splitIndex = normalized.search(/[：:]/);
-  if (splitIndex <= 0) return null;
-
-  const name = normalizeDisplayText(normalized.slice(0, splitIndex));
-  const content = normalizeDisplayText(normalized.slice(splitIndex + 1));
-  if (!name || !content) return null;
-
-  return { name, content, fallback: false };
-}
-
-function parseEffectTextEntries(raw: string): EffectEntry[] {
-  const text = String(raw || '')
-    .replace(/\r\n/g, '\n')
-    .trim();
-  if (!text) return [];
-
-  const lines = text
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean);
-
-  const entries: EffectEntry[] = [];
-  const remains: string[] = [];
-
-  lines.forEach(line => {
-    const named = parseNamedEffectLine(line);
-    if (named) {
-      entries.push(named);
-      return;
-    }
-    remains.push(line);
-  });
-
-  if (entries.length === 0) {
-    return [{ name: '描述', content: text, fallback: true }];
-  }
-
-  if (remains.length > 0) {
-    entries.push({ name: '描述', content: remains.join('\n'), fallback: true });
-  }
-
-  return entries;
-}
-
-function normalizeEffectEntries(value: unknown): EffectEntry[] {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([name, raw]) => {
-        const safeName = normalizeDisplayText(name) || '描述';
-        const content = textFromUnknown(raw).trim();
-        return {
-          name: safeName,
-          content,
-          fallback: safeName === '描述',
-        };
-      })
-      .filter(entry => entry.content.length > 0);
-  }
-
-  return parseEffectTextEntries(textFromUnknown(value));
-}
-
-function formatEffectEntries(entries: EffectEntry[]): string {
-  if (entries.length === 0) return '无';
-  if (entries.length === 1) {
-    const entry = entries[0];
-    return entry.fallback ? entry.content : `${entry.name}: ${entry.content}`;
-  }
-
-  return entries.map(entry => (entry.fallback ? entry.content : `${entry.name}: ${entry.content}`)).join('\n');
-}
-
-function itemEffectEntries(item: ItemObject): EffectEntry[] {
-  return normalizeEffectEntries(item?.效果);
-}
-
-function itemEffectEntriesOrDescription(item: ItemObject): EffectEntry[] {
-  const entries = itemEffectEntries(item);
-  if (entries.length > 0) return entries;
-
-  const description = itemDescription(item);
-  if (!description) return [];
-  return [{ name: '描述', content: description, fallback: true }];
-}
-
-function itemName(item: ItemObject): string {
-  return textFromUnknown(item?.名称) || '未命名';
-}
-
-function itemQuality(item: ItemObject): string {
-  return textFromUnknown(item?.品质 || item?.稀有度);
-}
-
-function qualityClass(item: ItemObject): string {
-  const quality = itemQuality(item).toLowerCase();
-  if (!quality) return '';
-
-  if (quality.includes('神话') || quality.includes('神話') || quality.includes('myth')) return 'quality-mythic';
-  if (quality.includes('传说') || quality.includes('傳說') || quality.includes('legend')) return 'quality-legendary';
-  if (quality.includes('史诗') || quality.includes('史詩') || quality.includes('epic')) return 'quality-epic';
-  if (quality.includes('稀有') || quality.includes('rare')) return 'quality-rare';
-  if (
-    quality.includes('优良') ||
-    quality.includes('優良') ||
-    quality.includes('优秀') ||
-    quality.includes('優秀') ||
-    quality.includes('精良') ||
-    quality.includes('uncommon')
-  ) {
-    return 'quality-uncommon';
-  }
-  if (quality.includes('普通') || quality.includes('common')) return 'quality-common';
-
-  return '';
-}
-
-function itemType(item: ItemObject): string {
-  return textFromUnknown(item?.类型 || item?.分类);
-}
-
-function itemDescription(item: ItemObject): string {
-  return textFromUnknown(item?.描述);
-}
-
-function itemEffectOrDescription(item: ItemObject): string {
-  return formatEffectEntries(itemEffectEntriesOrDescription(item));
-}
-
-function itemTags(item: ItemObject): string[] {
-  return getSmartArray(item?.标签);
-}
-
-function itemCost(item: ItemObject): string {
-  const fromArray = getSmartArray(item?.消耗).join(' / ');
-  if (fromArray) return fromArray;
-  return textFromUnknown(item?.消耗);
-}
-
-function lawPassive(item: ItemObject): string {
-  return textFromUnknown(item?.被动效果);
-}
-
-function lawActive(item: ItemObject): string {
-  return textFromUnknown(item?.主动效果);
-}
-
-function statusEffectType(item: ItemObject): string {
-  return textFromUnknown(item?.类型);
-}
-
-function statusEffectDescription(item: ItemObject): string {
-  return textFromUnknown(item?.效果);
-}
-
-function statusEffectLayers(item: ItemObject): string {
-  const value = textFromUnknown(item?.层数);
-  return value ? `${value}层` : '';
-}
-
-function statusEffectDuration(item: ItemObject): string {
-  return textFromUnknown(item?.剩余时间);
-}
-
-function statusEffectSource(item: ItemObject): string {
-  return textFromUnknown(item?.来源);
-}
-
-const skills = computed(() => asNamedObjectArray(sheetData.value?.技能));
-const equipments = computed(() => asNamedObjectArray(sheetData.value?.装备));
-
-const inventorySections = computed(() => {
-  const all = [
-    { key: 'backpack', title: '背包', items: asNamedObjectArray(sheetData.value?.背包) },
-    { key: 'props', title: '道具', items: asNamedObjectArray(sheetData.value?.道具) },
-    { key: 'special', title: '特殊物品', items: asNamedObjectArray(sheetData.value?.特殊物品) },
-    { key: 'items', title: '物品', items: asNamedObjectArray(sheetData.value?.物品) },
-  ];
-  return all.filter(section => section.items.length > 0);
-});
-
-const statusEffects = computed(() => asNamedObjectArray(sheetData.value?.状态效果));
-
-const divinityRoot = computed(() => {
-  const raw = sheetData.value?.登神长阶;
-  if (raw && typeof raw === 'object') return raw as Record<string, unknown>;
-  return {} as Record<string, unknown>;
-});
-
-const divinityGodTitle = computed(() => {
-  const fromRoot = textFromUnknown(divinityRoot.value?.神位);
-  if (hasText(fromRoot)) return fromRoot;
-  const fromTop = textFromUnknown(sheetData.value?.神位);
-  return hasText(fromTop) ? fromTop : '';
-});
-
-const divinityKingdom = computed(() => {
-  const raw = (divinityRoot.value?.神国 || sheetData.value?.神国) as unknown;
-  if (!raw || typeof raw !== 'object') return null;
-  const obj = raw as Record<string, unknown>;
-  const name = textFromUnknown(obj?.名称);
-  const description = textFromUnknown(obj?.描述);
-  if (!hasText(name) && !hasText(description)) return null;
-  return {
-    name: name || '神国',
-    description,
-  };
-});
-
-const divinityElements = computed(() => asNamedObjectArray(divinityRoot.value?.要素 || sheetData.value?.要素));
-const divinityPowers = computed(() => asNamedObjectArray(divinityRoot.value?.权能 || sheetData.value?.权能));
-const divinityLaws = computed(() => asNamedObjectArray(divinityRoot.value?.法则 || sheetData.value?.法则));
-
-const hasInventory = computed(() => inventorySections.value.length > 0);
-const hasDivinity = computed(() => {
-  return (
-    hasText(divinityGodTitle.value) ||
-    !!divinityKingdom.value ||
-    hasArrayContent(divinityElements.value) ||
-    hasArrayContent(divinityPowers.value) ||
-    hasArrayContent(divinityLaws.value)
-  );
-});
-const hasStatusEffects = computed(() => statusEffects.value.length > 0);
-
-const visibleTabs = computed<ViewTab[]>(() => {
-  return tabOrder.filter(tab => {
-    if (tab.key === 'profile') return true;
-    if (tab.key === 'skills') return skills.value.length > 0;
-    if (tab.key === 'equipment') return equipments.value.length > 0;
-    if (tab.key === 'inventory') return hasInventory.value;
-    if (tab.key === 'divinity') return hasDivinity.value;
-    if (tab.key === 'backstory') return hasText(backstoryText.value);
-    if (tab.key === 'statusEffects') return hasStatusEffects.value;
-    return false;
-  });
-});
+const skills = computed(() => vm.value?.skills || []);
+const equipments = computed(() => vm.value?.equipments || []);
+const inventorySections = computed(() => vm.value?.inventorySections || []);
+const statusEffects = computed(() => vm.value?.statusEffects || []);
+const divinityGodTitle = computed(() => vm.value?.divinityGodTitle || '');
+const divinityKingdom = computed(() => vm.value?.divinityKingdom || null);
+const divinityElements = computed(() => vm.value?.divinityElements || []);
+const divinityPowers = computed(() => vm.value?.divinityPowers || []);
+const divinityLaws = computed(() => vm.value?.divinityLaws || []);
+const visibleTabs = computed(() => vm.value?.visibleTabs || []);
 
 watchEffect(() => {
-  if (!visibleTabs.value.some((tab: ViewTab) => tab.key === activeTab.value)) {
+  if (!visibleTabs.value.some(tab => tab.key === activeTab.value)) {
     activeTab.value = visibleTabs.value[0]?.key || 'profile';
   }
 });
@@ -1299,6 +1006,125 @@ onBeforeUnmount(() => {
 
 .sheet-body {
   padding: 20px 30px 90px;
+}
+
+.card-wrapper.portrait-mode {
+  max-width: 1120px;
+}
+
+.portrait-mode .sheet-body {
+  padding: 24px 24px 88px;
+}
+
+.portrait-body {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.08fr) 112px minmax(300px, 0.92fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.portrait-main-panel {
+  min-width: 0;
+}
+
+.portrait-image-shell {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--tier-color-rgb), 0.5);
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.46),
+    0 0 22px rgba(var(--tier-color-rgb), 0.16);
+}
+
+.portrait-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portrait-info-panel {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(78, 255, 151, 0.55);
+  background:
+    linear-gradient(180deg, rgba(6, 45, 34, 0.88) 0%, rgba(5, 31, 32, 0.82) 100%),
+    rgba(4, 30, 28, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 18px rgba(44, 205, 128, 0.18);
+}
+
+.portrait-level-badge {
+  margin-bottom: 8px;
+}
+
+.portrait-name {
+  margin-bottom: 8px;
+  font-size: 2.2rem;
+}
+
+.portrait-meta-row {
+  justify-content: flex-start;
+  font-size: 0.86rem;
+}
+
+.portrait-compact-stats,
+.portrait-compact-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.86rem;
+  color: rgba(245, 255, 250, 0.92);
+}
+
+.portrait-compact-stats span,
+.portrait-compact-resources span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(134, 255, 185, 0.2);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.portrait-tab-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  top: 12px;
+  min-width: 0;
+}
+
+.portrait-tab-nav .tab-button {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.22);
+  color: #a8a8a8;
+}
+
+.portrait-tab-nav .tab-button.active {
+  color: var(--race-color);
+  border-color: rgba(var(--race-color-rgb), 0.62);
+  background: rgba(var(--race-color-rgb), 0.12);
+  font-weight: 700;
+}
+
+.portrait-body > .tab-content {
+  min-width: 0;
+  margin: 0;
 }
 
 .attributes-grid {
@@ -1815,6 +1641,35 @@ onBeforeUnmount(() => {
     padding: 16px 18px 84px;
   }
 
+  .portrait-mode .sheet-body {
+    padding: 16px 14px 82px;
+  }
+
+  .portrait-body {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .portrait-body.is-detail-tab .portrait-main-panel {
+    display: none;
+  }
+
+  .portrait-tab-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .portrait-tab-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .portrait-tab-nav .tab-button {
+    width: auto;
+    min-width: 82px;
+  }
+
   .sheet-header {
     padding: 40px 16px 20px;
   }
@@ -1885,6 +1740,18 @@ onBeforeUnmount(() => {
 
   .sheet-body {
     padding: 12px 10px 80px;
+  }
+
+  .portrait-mode .sheet-body {
+    padding: 10px 10px 78px;
+  }
+
+  .portrait-name {
+    font-size: 1.65rem;
+  }
+
+  .portrait-info-panel {
+    padding: 12px;
   }
 
   .attributes-grid {

@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PROTOTYPE - Venus portrait layout preview</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+      @import url("https://fontsapi.zeoseven.com/994/main/result.css");
+
+      :root {
+        --bg-base: #0B0C10;
+        --bg-surface: #14161E;
+        --bg-panel: rgba(20, 22, 30, 0.6);
+        
+        --text-primary: #F8F9FA;
+        --text-secondary: #A0A5B5;
+        --text-gold: #D4AF37;
+        
+        --accent-gold: #D4AF37;
+        --accent-gold-dim: rgba(212, 175, 55, 0.2);
+        
+        /* Rarity Colors */
+        --rarity-6: #f21455;
+        --rarity-5: #D4AF37;
+        
+        --border-light: rgba(255, 255, 255, 0.08);
+      }
+
+      html, body {
+        margin: 0;
+        padding: 20px;
+        height: 100%;
+        background-color: var(--bg-base);
+        color: var(--text-primary);
+        font-family: "LXGW Bright Code", "Inter", sans-serif;
+        font-weight: normal;
+        scrollbar-gutter: stable;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      * { box-sizing: border-box; }
+
+      .chatroom-sim {
+        width: 100%;
+        max-width: 1200px;
+        height: 100%;
+        max-height: 800px;
+        background: var(--bg-surface);
+        border-radius: 16px;
+        border: 1px solid var(--border-light);
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        overflow: hidden;
+        position: relative;
+        display: flex;
+      }
+
+      .prototype-note {
+        position: absolute;
+        top: 24px;
+        left: 24px;
+        color: rgba(255, 255, 255, 0.2);
+        font-family: "Inter", sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        z-index: 10;
+        pointer-events: none;
+      }
+
+      .preview-shell {
+        display: flex;
+        width: 100%;
+        height: 100%;
+      }
+
+      .portrait-pane {
+        flex: 0 0 45%;
+        position: relative;
+        height: 100%;
+      }
+
+      .portrait-pane img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: top center;
+      }
+
+      .portrait-pane::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to right, transparent 60%, var(--bg-surface) 100%);
+      }
+
+      .data-pane {
+        flex: 1;
+        padding: 64px 56px;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        position: relative;
+        z-index: 2;
+      }
+
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+      /* --- 修复：完美的居中对称排版 --- */
+      .header-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 10px;
+        margin-bottom: 28px;
+        flex-shrink: 0;
+      }
+
+      .level-tier-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+        padding: 4px 0;
+        position: relative;
+      }
+      
+      .level-tier-badge::before,
+      .level-tier-badge::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+      }
+      .level-tier-badge::before { right: 100%; margin-right: 16px; }
+      .level-tier-badge::after { left: 100%; margin-left: 16px; }
+
+      .level-badge, .tier-badge {
+        font-family: 'Cinzel', "LXGW Bright Code", serif;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.1em;
+        margin: 0;
+        padding: 0;
+        border: none;
+        background: none;
+        box-shadow: none;
+      }
+      
+      .level-badge {
+        color: var(--accent-gold);
+        text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+      }
+      
+      .tier-badge {
+        text-shadow: 0 0 8px currentColor;
+      }
+
+      .badge-separator {
+        color: rgba(212, 175, 55, 0.4);
+        font-size: 10px;
+        margin: 0 16px;
+      }
+
+      .character-name {
+        margin: 0 0 4px 0;
+        font-family: "LXGW Bright Code", serif;
+        font-size: 42px;
+        font-weight: 600;
+        line-height: 1.1;
+        color: #FFFFFF;
+        text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+      }
+
+      .meta-tags {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.5;
+        padding: 4px 0;
+      }
+
+      .meta-group {
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+      }
+
+      .meta-sep {
+        color: var(--accent-gold);
+        font-size: 10px;
+        opacity: 0.8;
+        margin: 0 10px;
+        transform: scale(0.8) rotate(45deg);
+        display: inline-block;
+      }
+      .character-subtitle {
+        color: #E2E8F0;
+        font-family: "LXGW Bright Code", serif;
+        font-size: 14px;
+        letter-spacing: 0.05em;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+        margin-top: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .character-subtitle .meta-sep {
+        color: rgba(212, 175, 55, 0.6);
+        margin: 0 10px;
+        font-size: 10px;
+        transform: scale(0.8) rotate(45deg);
+      }
+
+      /* Fantasy Rarity Banner for Header and Skills */
+      .meta-highlight, .list-item-type {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 24px;
+        font-family: "Cinzel", "LXGW Bright Code", serif;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.1em;
+        background: transparent;
+        border: none;
+        z-index: 1;
+        margin-left: 4px;
+      }
+      
+      .meta-highlight::before, .list-item-type::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, currentColor, transparent);
+        opacity: 0.15;
+        z-index: -1;
+      }
+      
+      .meta-highlight::after, .list-item-type::after {
+        content: '';
+        position: absolute;
+        left: 0; right: 0; top: 0; bottom: 0;
+        border-top: 1px solid currentColor;
+        border-bottom: 1px solid currentColor;
+        opacity: 0.4;
+        mask-image: linear-gradient(90deg, transparent, black 20%, black 80%, transparent);
+        -webkit-mask-image: linear-gradient(90deg, transparent, black 20%, black 80%, transparent);
+        pointer-events: none;
+      }
+
+      /* Rarity 颜色 */
+      .rarity-6 { color: var(--rarity-6) !important; }
+      .rarity-5 { color: var(--rarity-5) !important; }
+      
+      .tag-rarity-6 {
+        color: var(--rarity-6) !important;
+        border-color: rgba(242, 20, 85, 0.4) !important;
+        background: rgba(242, 20, 85, 0.05) !important;
+      }
+      .tag-rarity-5 {
+        color: var(--rarity-5) !important;
+        border-color: rgba(212, 175, 55, 0.4) !important;
+        background: rgba(212, 175, 55, 0.05) !important;
+      }
+
+      /* Tabs */
+      .tabs-container {
+        display: flex;
+        justify-content: center;
+        gap: 32px;
+        border-bottom: 1px solid var(--border-light);
+        margin-bottom: 24px;
+        flex-shrink: 0;
+      }
+
+      .tab-btn {
+        background: none;
+        border: none;
+        padding: 0 0 12px 0;
+        color: var(--text-secondary);
+        font-family: "Noto Sans SC", sans-serif;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        position: relative;
+        transition: color 0.2s;
+      }
+
+      .tab-btn:hover { color: var(--text-primary); }
+      .tab-btn.active { color: var(--accent-gold); }
+      .tab-btn.active::after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--accent-gold);
+      }
+
+      /* Panels */
+      .panels-wrapper {
+        flex: 1;
+        position: relative;
+      }
+
+      .panel-content {
+        display: none;
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      .panel-content.active {
+        display: block;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* --- 修复：完全恢复原本完美的 App.vue 资源栏 --- */
+      .resource-grid {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 40px;
+        margin: 24px 0 32px;
+        position: relative;
+        padding: 16px 0;
+      }
+      
+      .resource-grid::before, .resource-grid::after {
+        content: '';
+        position: absolute;
+        left: 15%; right: 15%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.15), transparent);
+      }
+      .resource-grid::before { top: 0; }
+      .resource-grid::after { bottom: 0; }
+
+      .resource-item {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 20px;
+      }
+
+      /* Vertical line separator between items */
+      .resource-item:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        right: -20px;
+        top: 15%;
+        bottom: 15%;
+        width: 1px;
+        background: linear-gradient(180deg, transparent, rgba(212, 175, 55, 0.3), transparent);
+      }
+
+      .resource-name {
+        font-family: 'Cinzel', serif;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        text-shadow: 0 0 10px currentColor;
+      }
+      
+      .resource-item:nth-child(1) .resource-name { color: #ff4d4d; }
+      .resource-item:nth-child(2) .resource-name { color: #4d94ff; }
+      .resource-item:nth-child(3) .resource-name { color: #ffd700; }
+
+      .resource-value {
+        font-family: 'Cinzel', serif;
+        font-size: 22px;
+        font-weight: 700;
+        color: #ffffff;
+        text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+      }
+
+      /* --- 修复：完全恢复原本完美的属性旗帜 --- */
+      .attributes-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 18px;
+        margin-top: 32px;
+        --flag-width: 96px;
+        --flag-min-height: 140px;
+        --flag-top-padding: 15px;
+        --flag-bottom-padding: 40px;
+      }
+
+      .attribute-item {
+        flex: 0 0 var(--flag-width);
+        width: var(--flag-width);
+        min-width: var(--flag-width);
+        max-width: var(--flag-width);
+        min-height: var(--flag-min-height);
+        box-sizing: border-box;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-top: 2px solid var(--accent-gold);
+        clip-path: polygon(0% 0%, 100% 0%, 100% 85%, 50% 100%, 0% 85%);
+        padding: var(--flag-top-padding) 5px var(--flag-bottom-padding);
+        text-align: center;
+        cursor: default;
+        transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .attribute-item:hover {
+        transform: translateY(-3px);
+        background: rgba(212, 175, 55, 0.1);
+        box-shadow: 0 5px 20px rgba(212, 175, 55, 0.15);
+        border-color: rgba(212, 175, 55, 0.4);
+      }
+
+      .attribute-name {
+        display: block;
+        font-size: 1rem;
+        color: #fff;
+        margin-bottom: 6px;
+        font-weight: 700;
+        line-height: 1.05;
+        opacity: 0.96;
+      }
+
+      .attribute-total {
+        display: block;
+        font-family: 'Cinzel', serif;
+        font-size: 2rem;
+        line-height: 1;
+        font-weight: 700;
+        color: var(--accent-gold);
+        text-shadow: 0 2px 15px rgba(212, 175, 55, 0.45);
+      }
+
+      /* --- 修复：1x4 Profile 排版 --- */
+      .info-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .text-block {
+        position: relative;
+        padding: 32px 40px;
+        background: radial-gradient(ellipse at center, rgba(30, 34, 42, 0.4) 0%, rgba(10, 12, 16, 0.8) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        
+        --corner: rgba(212, 175, 55, 0.6);
+        background-image: 
+          linear-gradient(var(--corner), var(--corner)), linear-gradient(var(--corner), var(--corner)),
+          linear-gradient(var(--corner), var(--corner)), linear-gradient(var(--corner), var(--corner)),
+          linear-gradient(var(--corner), var(--corner)), linear-gradient(var(--corner), var(--corner)),
+          linear-gradient(var(--corner), var(--corner)), linear-gradient(var(--corner), var(--corner));
+        background-size: 
+          12px 1px, 1px 12px, 
+          12px 1px, 1px 12px, 
+          12px 1px, 1px 12px, 
+          12px 1px, 1px 12px;
+        background-position: 
+          0 0, 0 0, 
+          100% 0, 100% 0, 
+          100% 100%, 100% 100%, 
+          0 100%, 0 100%;
+        background-repeat: no-repeat;
+      }
+
+      .text-block::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 15%; right: 15%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
+      }
+
+      .text-block::after {
+        content: '';
+        position: absolute;
+        bottom: 0; left: 15%; right: 15%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
+      }
+
+      .text-block h3 {
+        text-align: center;
+        color: var(--accent-gold);
+        font-family: "Cinzel", "LXGW Bright Code", serif;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        margin: 0 0 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+      }
+
+      .text-block h3::before, .text-block h3::after {
+        content: '◆';
+        font-size: 10px;
+        color: rgba(212, 175, 55, 0.4);
+        margin: 0 16px;
+      }
+
+      .text-block p {
+        margin: 0;
+        font-family: "LXGW Bright Code", serif;
+        font-size: 15px;
+        line-height: 1.8;
+        color: #E2E8F0;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      }
+
+      /* --- 神性领域卡片 (Divinity Block) --- */
+      .divinity-block {
+        position: relative;
+        padding: 40px;
+        background: radial-gradient(ellipse at top, rgba(212, 175, 55, 0.15) 0%, rgba(10, 12, 16, 0.9) 100%);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 4px;
+        box-shadow: 
+          inset 0 0 40px rgba(212, 175, 55, 0.05),
+          0 15px 40px rgba(0, 0, 0, 0.6);
+        text-align: center;
+        overflow: hidden;
+      }
+
+      /* Animated divine glow background */
+      .divinity-block::before {
+        content: '';
+        position: absolute;
+        top: -50%; left: -50%; right: -50%; bottom: -50%;
+        background: conic-gradient(from 0deg, transparent 0%, rgba(212, 175, 55, 0.1) 25%, transparent 50%, rgba(212, 175, 55, 0.1) 75%, transparent 100%);
+        animation: divinity-rotate 20s linear infinite;
+        z-index: 0;
+        pointer-events: none;
+      }
+      
+      @keyframes divinity-rotate {
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Ornate frame lines */
+      .divinity-block::after {
+        content: '';
+        position: absolute;
+        inset: 8px;
+        border: 1px solid rgba(212, 175, 55, 0.15);
+        background: 
+          linear-gradient(90deg, rgba(212, 175, 55, 0.5) 10px, transparent 10px) 0 0 / 100% 1px no-repeat,
+          linear-gradient(90deg, rgba(212, 175, 55, 0.5) 10px, transparent 10px) 0 100% / 100% 1px no-repeat,
+          linear-gradient(0deg, rgba(212, 175, 55, 0.5) 10px, transparent 10px) 0 0 / 1px 100% no-repeat,
+          linear-gradient(0deg, rgba(212, 175, 55, 0.5) 10px, transparent 10px) 100% 0 / 1px 100% no-repeat;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .divinity-title-wrapper {
+        position: relative;
+        z-index: 2;
+        margin-bottom: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+      }
+
+      .divinity-title-wrapper::before,
+      .divinity-title-wrapper::after {
+        content: '';
+        flex: 1;
+        max-width: 80px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--accent-gold));
+      }
+
+      .divinity-title-wrapper::after {
+        background: linear-gradient(270deg, transparent, var(--accent-gold));
+      }
+
+      .divinity-title-wrapper h3 {
+        font-family: "Cinzel", "LXGW Bright Code", serif;
+        font-size: 28px;
+        font-weight: 700;
+        color: #fff;
+        text-shadow: 
+          0 0 10px rgba(212, 175, 55, 0.8),
+          0 0 20px rgba(212, 175, 55, 0.4);
+        margin: 0;
+        letter-spacing: 0.1em;
+        background: linear-gradient(180deg, #FFFFFF 0%, var(--accent-gold) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .divinity-content {
+        position: relative;
+        z-index: 2;
+        text-align: left;
+        color: #E2E8F0;
+        font-family: "LXGW Bright Code", serif;
+        line-height: 1.9;
+        font-size: 15px;
+        padding: 0 20px;
+      }
+
+      .divinity-keyword {
+        color: var(--accent-gold);
+        font-weight: 700;
+        font-family: "Cinzel", "LXGW Bright Code", serif;
+        letter-spacing: 0.1em;
+        text-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+        border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+        margin-right: 8px;
+        display: inline-block;
+      }
+      
+      .divinity-separator {
+        display: block;
+        margin: 24px auto;
+        width: 120px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.4), transparent);
+        position: relative;
+      }
+      
+      .divinity-separator::after {
+        content: '✧';
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        color: rgba(212, 175, 55, 0.6);
+        font-size: 14px;
+        background: #0a0c10;
+        padding: 0 4px;
+      }
+
+      /* 技能和装备卡片 (Grimoire Entry) */
+      .list-item {
+        position: relative;
+        background: rgba(12, 14, 18, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        border-radius: 2px;
+        padding: 24px 32px;
+        margin-bottom: 24px;
+        box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8), 0 10px 20px rgba(0, 0, 0, 0.5);
+      }
+
+      .list-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .list-item h3 {
+        margin: 0;
+        font-family: "LXGW Bright Code", serif;
+        font-size: 20px;
+        font-weight: 700;
+        color: #FFF;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+      }
+      
+      .list-item h3::before {
+        content: '✦';
+        font-family: "Cinzel", serif;
+        color: var(--item-color);
+        font-size: 20px;
+        margin-right: 12px;
+        text-shadow: 0 0 12px var(--item-color);
+        font-weight: normal;
+      }
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .tag {
+        font-family: "LXGW Bright Code", serif;
+        font-size: 12px;
+        background: rgba(0, 0, 0, 0.4);
+        color: var(--text-secondary);
+        padding: 4px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+      }
+
+      @media (max-width: 900px) {
+        .chatroom-sim { height: 100%; border-radius: 0; border: none; }
+        .preview-shell { flex-direction: column; }
+        .portrait-pane { flex: none; height: 40vh; }
+        .data-pane { padding: 24px; }
+        .character-name { font-size: 32px; }
+        .attributes-grid { flex-wrap: wrap; justify-content: center; }
+        .attr-box { flex: 1 1 calc(33% - 16px); min-width: 80px; }
+        .tabs-container { overflow-x: auto; padding-bottom: 2px; }
+      }
+
+      @media (max-width: 600px) {
+        .text-block { padding: 24px 20px; }
+        .divinity-block { padding: 24px 20px; }
+        .divinity-title-wrapper h3 { font-size: 22px; }
+        .list-item { padding: 20px; }
+        .list-item-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+        .meta-highlight, .list-item-type { padding: 4px 16px; font-size: 12px; }
+        .character-name { font-size: 28px; }
+        .data-pane { padding: 16px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chatroom-sim">
+      <div class="prototype-note">PROTOTYPE</div>
+      
+      <main class="preview-shell">
+        <div class="portrait-pane">
+          <img src="./123 (1).png" alt="维纳丝·珀菈·索伦蒂斯" />
+        </div>
+
+        <div class="data-pane">
+          <!-- Perfectly Aligned Header -->
+          <div class="header-section">
+            <div class="level-tier-badge">
+              <span class="level-badge">LV. 24</span>
+              <span class="badge-separator">✦</span>
+              <span class="tier-badge rarity-6">第六层级</span>
+            </div>
+            <h1 class="character-name fit-name">维纳丝·珀菈·索伦蒂斯</h1>
+            <div class="character-subtitle">
+              <span>半人鱼</span>
+              <span class="meta-sep">◆</span>
+              <span>索伦蒂斯女王 / 『至高的阿芙罗黛蒂』</span>
+            </div>
+          </div>
+
+          <div class="tabs-container">
+            <button class="tab-btn active" data-tab="home">首页</button>
+            <button class="tab-btn" data-tab="profile">档案</button>
+            <button class="tab-btn" data-tab="skills">技能</button>
+            <button class="tab-btn" data-tab="equipment">装备</button>
+            <button class="tab-btn" data-tab="divinity">登神长阶</button>
+            <button class="tab-btn" data-tab="story">背景故事</button>
+          </div>
+
+          <div class="panels-wrapper">
+            <div class="panel-content active" id="panel-home">
+              <div class="overview-section">
+                
+                <div class="attributes-grid">
+                  <div class="attribute-item">
+                    <span class="attribute-name">力量</span>
+                    <span class="attribute-total">12</span>
+                  </div>
+                  <div class="attribute-item">
+                    <span class="attribute-name">敏捷</span>
+                    <span class="attribute-total">13</span>
+                  </div>
+                  <div class="attribute-item">
+                    <span class="attribute-name">体质</span>
+                    <span class="attribute-total">14</span>
+                  </div>
+                  <div class="attribute-item">
+                    <span class="attribute-name">智力</span>
+                    <span class="attribute-total">18</span>
+                  </div>
+                  <div class="attribute-item">
+                    <span class="attribute-name">精神</span>
+                    <span class="attribute-total">18</span>
+                  </div>
+                </div>
+
+                <div class="resource-grid">
+                  <div class="resource-item">
+                    <span class="resource-name">HP</span>
+                    <span class="resource-value">56075</span>
+                  </div>
+                  <div class="resource-item">
+                    <span class="resource-name">MP</span>
+                    <span class="resource-value">144000</span>
+                  </div>
+                  <div class="resource-item">
+                    <span class="resource-name">SP</span>
+                    <span class="resource-value">100000</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <div class="panel-content" id="panel-profile">
+              <!-- 1x4 Layout -->
+              <div class="info-grid">
+                <div class="text-block">
+                  <h3>性格</h3>
+                  <p>【女王特权 嗯↗哈↘哈↗哈！这个位置本王买下了！】</p>
+                </div>
+                <div class="text-block">
+                  <h3>外貌特质</h3>
+                  <p>外观年龄21岁，身高160cm。骨架娇小但曲线丰沛，常微仰下巴，单手叉腰。浅金及臀的微卷长发，碧绿圆瞳中带有金环，耳部略尖并藏有微小鳃裂。腰腹处覆有浅金色半透明的细密鱼鳞。</p>
+                </div>
+                <div class="text-block">
+                  <h3>喜爱</h3>
+                  <p>歌舞、服饰、珠宝、舞台、建筑、庆典，享受站在百万人的视线中心。</p>
+                </div>
+                <div class="text-block">
+                  <h3>衣物装饰</h3>
+                  <p>一袭白色露背丝绒短衣搭配半透明泡泡袖，下半身是前短后长的半透纱裙，裙摆缀满纯金铃铛。赤足，脚踝扣着魔导水晶与精雕的黄金脚链。</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-content" id="panel-skills">
+              <div class="list-item" style="--item-color: var(--rarity-6);">
+                <div class="list-item-header">
+                  <h3>晶钻进行曲·快板</h3>
+                  <span class="list-item-type tag-rarity-6">神话 / 主动</span>
+                </div>
+                <div class="tags">
+                  <span class="tag">智力</span>
+                  <span class="tag">范围:500</span>
+                  <span class="tag">伤害</span>
+                  <span class="tag">威力:7000</span>
+                </div>
+                <div class="text-block" style="padding: 0; border: none; background: transparent;">
+                  <p>固定额外真实伤害: 2000<br>范围爆破: 70%能量伤害 + 30%真实伤害<br>鼓舞增益: 友方获得全属性检定修正+6，持续10回合</p>
+                </div>
+              </div>
+              <div class="list-item" style="--item-color: var(--rarity-5);">
+                <div class="list-item-header">
+                  <h3>碎星剑舞</h3>
+                  <span class="list-item-type tag-rarity-5">传说 / 主动</span>
+                </div>
+                <div class="tags">
+                  <span class="tag">敏捷</span>
+                  <span class="tag">自身</span>
+                  <span class="tag">增益</span>
+                  <span class="tag">多段</span>
+                </div>
+                <div class="text-block" style="padding: 0; border: none; background: transparent;">
+                  <p>剑刃附魔: 赋予武器25%伤害增幅，持续5回合<br>绝对命中: 持续期间攻击检定修正+8</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-content" id="panel-equipment">
+              <div class="list-item" style="--item-color: var(--rarity-6);">
+                <div class="list-item-header">
+                  <h3>潮汐星核冠冕</h3>
+                  <span class="list-item-type tag-rarity-6">神话 / 头饰</span>
+                </div>
+                <div class="tags">
+                  <span class="tag">防御: 1500</span>
+                  <span class="tag">索伦蒂斯王室</span>
+                  <span class="tag">头部</span>
+                </div>
+                <div class="text-block" style="padding: 0; border: none; background: transparent;">
+                  <p>精神检定修正: +8<br>法力恢复: 每回合恢复5%最大MP</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-content" id="panel-divinity">
+              <div class="divinity-block">
+                <div class="divinity-title-wrapper">
+                  <h3>煌海梦幻大剧场</h3>
+                </div>
+                <div class="divinity-content">
+                  <p><span class="divinity-keyword">被动</span>概念免疫精神控制与存在抹除。无法隐身、下毒、背刺、暗杀等行为，违规者全状态暴降。</p>
+                  <div class="divinity-separator"></div>
+                  <p><span class="divinity-keyword">主动</span>展开覆盖整个王国的全息天空投影，全国直播。领域内战败/死亡者强制化为彩色泡沫飘散。</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-content" id="panel-story">
+              <div class="text-block">
+                <h3>背景故事</h3>
+                <p>索伦蒂斯初代国王与人鱼王后的混血独女。童年受艺术熏陶，立志成为梦幻的主人。以华丽的爆炸魔法粉碎了纯血贵族的质疑，凭直觉打通奢侈品航线使国库暴涨。登基时升华法则源质，向世人宣告新王诞生。</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      const panels = document.querySelectorAll('.panel-content');
+      const fittedNames = document.querySelectorAll('.fit-name');
+
+      function fitName() {
+        fittedNames.forEach(name => {
+          name.style.fontSize = "";
+          const max = Number.parseFloat(getComputedStyle(name).fontSize);
+          let size = max;
+          while (name.scrollWidth > name.clientWidth && size > 28) {
+            size -= 1;
+            name.style.fontSize = `${size}px`;
+          }
+        });
+      }
+
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabBtns.forEach(b => b.classList.remove('active'));
+          panels.forEach(p => p.classList.remove('active'));
+          btn.classList.add('active');
+          const targetPanel = document.getElementById(`panel-${btn.dataset.tab}`);
+          if (targetPanel) {
+            targetPanel.classList.add('active');
+          }
+        });
+      });
+
+      window.addEventListener("resize", fitName);
+      fitName();
+    </script>
+  </body>
+</html>
