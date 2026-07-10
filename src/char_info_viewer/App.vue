@@ -15,6 +15,13 @@
           </ul>
         </div>
 
+        <div class="yaml-rescue-box">
+          <button class="yaml-rescue-button" type="button" :disabled="looseParsing" @click="tryLooseParse">
+            {{ looseParsing ? '读取中...' : '尝试宽松读取' }}
+          </button>
+          <p>这会改用“按关键字之间的内容切段”的方式救回资料，适合缩进被弄乱时临时查看。</p>
+        </div>
+
         <template v-if="parseError.cleanedLine">
           <div class="yaml-error-title">系统定位到的出错行（请重点检查）</div>
           <pre class="yaml-error-pre"
@@ -30,7 +37,25 @@
       </div>
     </div>
 
-    <div v-else-if="sheetData" :class="[wrapperClasses, { 'portrait-mode': isPortraitLayout }]">
+    <template v-else-if="sheetData">
+      <div v-if="looseParseWarning" class="parse-warning-card">
+        {{ looseParseWarning }}
+      </div>
+
+      <SpecialNpcCharacterSheet
+        v-if="isSpecialNpcLayout && vm"
+        :vm="vm"
+        :attributes="attributes"
+        :importing="importing"
+        :import-button-text="importButtonText"
+        :show-import-menu="showImportMenu"
+        @toggle-attribute-formula="toggleAttributeFormula"
+        @toggle-import-menu="toggleImportMenu"
+        @import-mvu="onImportMvu"
+        @import-worldbook="onImportWorldbook"
+      />
+
+      <div v-else :class="[wrapperClasses, { 'portrait-mode': isPortraitLayout }]">
       <div class="frame-layer" :class="{ show: tierNumber >= 5 }" aria-hidden="true">
         <svg class="frame-svg frame-top" viewBox="0 0 400 100" preserveAspectRatio="none">
           <path d="M 5,100 A 195,80 0 0,1 395,100" />
@@ -400,7 +425,8 @@
           <button type="button" :disabled="importing" @click="onImportWorldbook">导入到 聊天世界书</button>
         </div>
       </div>
-    </div>
+      </div>
+    </template>
 
     <div v-else class="loading-card">等待 YAML 数据...</div>
   </div>
@@ -440,12 +466,16 @@ import {
 import { importToMvuVariables, saveToChatWorldbook } from './services/importService';
 import { createParticleEngine, type ParticleEngine } from './services/particleEngine';
 import { applyTheme, resolveTheme } from './services/themeService';
-import { parseCharacterYaml } from './services/yamlParser';
+import { parseCharacterYaml, parseCharacterYamlLoose } from './services/yamlParser';
 import type { CharacterData, FriendlyYamlError, ThemeResolved } from './types';
+import SpecialNpcCharacterSheet from './components/specialNpc/SpecialNpcCharacterSheet.vue';
 
 const sheetData = ref<CharacterData | null>(null);
 const parseError = ref<FriendlyYamlError | null>(null);
 const originalYamlText = ref('');
+const parseMode = ref<'strict' | 'loose'>('strict');
+const parseWarnings = ref<string[]>([]);
+const looseParsing = ref(false);
 const theme = ref<ThemeResolved | null>(null);
 const activeTab = ref<TabKey>('profile');
 
@@ -467,6 +497,7 @@ const defaultParseErrorTips = [
 ];
 
 const parseErrorTips = computed(() => parseError.value?.tips?.length ? parseError.value.tips : defaultParseErrorTips);
+const looseParseWarning = computed(() => (parseMode.value === 'loose' ? parseWarnings.value[0] || '当前使用宽松读取，导入前请先检查内容。' : ''));
 
 const attributeLabelMap: Record<string, string> = {
   力量: '力',
@@ -484,7 +515,8 @@ const wrapperClasses = computed(() => ({
 }));
 
 const vm = computed(() => (sheetData.value ? buildCharacterViewModel(sheetData.value) : null));
-const isPortraitLayout = computed(() => vm.value?.layoutKind === 'portrait');
+const isSpecialNpcLayout = computed(() => vm.value?.layoutKind === 'special_npc');
+const isPortraitLayout = computed(() => false);
 const isPortraitDetailTab = computed(() => isPortraitLayout.value && activeTab.value !== 'profile');
 const portraitImageUrl = computed(() => vm.value?.imageUrl || '');
 const nameText = computed(() => vm.value?.nameText || 'Unknown');
@@ -580,6 +612,8 @@ function initFromYaml() {
   originalYamlText.value = yamlText;
   sheetData.value = null;
   parseError.value = null;
+  parseMode.value = 'strict';
+  parseWarnings.value = [];
   theme.value = null;
 
   if (!yamlText) {
@@ -593,11 +627,37 @@ function initFromYaml() {
     return;
   }
 
-  sheetData.value = parsed.data;
-  theme.value = resolveTheme(parsed.data);
-  applyTheme(theme.value);
+  applyParsedCharacterData(parsed.data, parsed.mode ?? 'strict', parsed.warnings ?? []);
 
   nextTick(() => setupParticleEngine());
+}
+
+function applyParsedCharacterData(data: CharacterData, mode: 'strict' | 'loose', warnings: string[] = []) {
+  sheetData.value = data;
+  parseError.value = null;
+  parseMode.value = mode;
+  parseWarnings.value = warnings;
+  theme.value = resolveTheme(data);
+  applyTheme(theme.value);
+}
+
+async function tryLooseParse() {
+  if (!originalYamlText.value || looseParsing.value) return;
+  looseParsing.value = true;
+
+  try {
+    const parsed = parseCharacterYamlLoose(originalYamlText.value);
+    if (!parsed.success) {
+      parseError.value = parsed.error;
+      return;
+    }
+
+    applyParsedCharacterData(parsed.data, parsed.mode ?? 'loose', parsed.warnings ?? []);
+    await nextTick();
+    setupParticleEngine();
+  } finally {
+    looseParsing.value = false;
+  }
 }
 
 function toggleImportMenu() {
@@ -631,6 +691,11 @@ async function onImportMvu() {
     );
     if (!ok) return;
 
+    if (parseMode.value === 'loose') {
+      const looseOk = window.confirm('当前资料来自宽松读取，可能缺少技能、装备或嵌套结构。确认检查无误后再导入？');
+      if (!looseOk) return;
+    }
+
     importButtonText.value = '⏳';
     await importToMvuVariables(sheetData.value);
     flashImportButton('✅', 1600);
@@ -649,6 +714,11 @@ async function onImportWorldbook() {
   closeImportMenu();
 
   try {
+    if (parseMode.value === 'loose') {
+      const looseOk = window.confirm('当前资料来自宽松读取，原始 YAML 可能仍有格式错误。确认仍要保存到聊天世界书？');
+      if (!looseOk) return;
+    }
+
     importButtonText.value = '⏳';
     console.info('[CharInfo Viewer] Chat worldbook import started', {
       characterName: sheetData.value.姓名 || 'Unknown',
@@ -759,6 +829,47 @@ onBeforeUnmount(() => {
 .yaml-error-details summary {
   cursor: pointer;
   user-select: none;
+}
+
+.yaml-rescue-box,
+.parse-warning-card {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(246, 217, 130, 0.36);
+  background:
+    radial-gradient(ellipse at 0 0, rgba(246, 217, 130, 0.14), transparent 58%),
+    rgba(15, 22, 36, 0.76);
+  color: rgba(255, 252, 242, 0.92);
+}
+
+.yaml-rescue-box p {
+  margin: 8px 0 0;
+  color: rgba(255, 252, 242, 0.72);
+  line-height: 1.55;
+}
+
+.yaml-rescue-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(246, 217, 130, 0.62);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(246, 217, 130, 0.16), rgba(246, 217, 130, 0.06));
+  color: #ffe79c;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.yaml-rescue-button:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
+.parse-warning-card {
+  max-width: 920px;
+  margin: 0 auto 14px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .card-wrapper {

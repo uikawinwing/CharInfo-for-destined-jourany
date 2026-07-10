@@ -1,0 +1,3 @@
+git diff --stat 9c27e2b1eb79ddeda6c87a3c5af31eab39a1bdf2..main
+git diff --name-status 9c27e2b1eb79ddeda6c87a3c5af31eab39a1bdf2..main
+git diff 9c27e2b1eb79ddeda6c87a3c5af31eab39a1bdf2..main > worldbook-4.2.1-to-4.2.2.diff

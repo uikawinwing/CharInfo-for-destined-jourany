@@ -289,6 +289,174 @@ function buildFriendlyYamlError(
   };
 }
 
+const LOOSE_TOP_KEYS = [
+  '姓名',
+  '等级',
+  '种族',
+  '生命层级',
+  '身份',
+  '职业',
+  '性格',
+  '喜爱',
+  '外貌特质',
+  '衣物装饰',
+  '背景故事',
+  '角色图片',
+  '立绘',
+  '图片',
+  '属性',
+  '资源',
+] as const;
+
+const LOOSE_SCALAR_KEYS = new Set(['姓名', '等级', '种族', '生命层级', '角色图片', '立绘', '图片']);
+const LOOSE_ARRAY_KEYS = new Set(['身份', '职业', '喜爱']);
+const LOOSE_TEXT_KEYS = new Set(['性格', '外貌特质', '衣物装饰', '背景故事']);
+const LOOSE_ATTRIBUTE_KEYS = ['力量', '敏捷', '体质', '智力', '精神'] as const;
+const LOOSE_RESOURCE_KEYS = ['HP', 'SP', 'MP'] as const;
+
+function stripLooseQuote(value: string): string {
+  return value
+    .trim()
+    .replace(/^['"`]|['"`]$/g, '')
+    .trim();
+}
+
+function normalizeLooseBlock(lines: string[]): string {
+  return lines
+    .map(line => line.replace(/^\s*[-*]\s?/, '').trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+function splitLooseArray(value: string): string[] {
+  return value
+    .split(/[\/、，,；;\n]/g)
+    .map(part => stripLooseQuote(part))
+    .filter(Boolean);
+}
+
+function looseKeyMatch(line: string): { key: string; value: string } | null {
+  const trimmed = line.trim();
+  const match = trimmed.match(/^[-*]?\s*([^：:\s][^：:]{0,24})\s*[：:]\s*(.*)$/);
+  if (!match) return null;
+
+  const key = normalizeKey(match[1].trim());
+  if (!LOOSE_TOP_KEYS.includes(key as (typeof LOOSE_TOP_KEYS)[number])) return null;
+
+  return { key, value: match[2] ?? '' };
+}
+
+function extractLooseSections(source: string): Partial<Record<(typeof LOOSE_TOP_KEYS)[number], string[]>> {
+  const lines = source.replace(/\r\n/g, '\n').split('\n');
+  const sections: Partial<Record<(typeof LOOSE_TOP_KEYS)[number], string[]>> = {};
+  let currentKey: (typeof LOOSE_TOP_KEYS)[number] | null = null;
+
+  for (const line of lines) {
+    const matched = looseKeyMatch(line);
+    if (matched) {
+      currentKey = matched.key as (typeof LOOSE_TOP_KEYS)[number];
+      sections[currentKey] = [];
+      if (matched.value.trim()) sections[currentKey]?.push(matched.value);
+      continue;
+    }
+
+    if (currentKey) {
+      sections[currentKey]?.push(line);
+    }
+  }
+
+  return sections;
+}
+
+function parseLooseNumberLike(value: string): string | number {
+  const clean = stripLooseQuote(value);
+  const numberMatch = clean.match(/^-?\d+(?:\.\d+)?$/);
+  return numberMatch ? Number(clean) : clean;
+}
+
+function parseLooseKVBlock(lines: string[], keys: readonly string[]): Record<string, string | number> {
+  const text = lines.join('\n');
+  const output: Record<string, string | number> = {};
+
+  for (const key of keys) {
+    const keyPattern = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = text.match(new RegExp(`${keyPattern}\\s*[：:]?\\s*([^\\s，,、；;|]+)`));
+    if (match) output[key] = parseLooseNumberLike(match[1]);
+  }
+
+  lines.forEach(line => {
+    const match = line.trim().match(/^[-*]?\s*([^：:\s]+)\s*[：:]\s*(.+)$/);
+    if (!match) return;
+    const key = normalizeKey(match[1].trim());
+    if (!keys.includes(key)) return;
+    output[key] = parseLooseNumberLike(match[2]);
+  });
+
+  return output;
+}
+
+export function parseCharacterYamlLoose(yamlText: string): ParseResult {
+  const prepared = prepareYaml(yamlText);
+  const sections = extractLooseSections(prepared.source);
+  const data: CharacterData = {};
+
+  for (const [key, lines] of Object.entries(sections)) {
+    const block = normalizeLooseBlock(lines ?? []);
+    if (!block) continue;
+
+    if (LOOSE_SCALAR_KEYS.has(key)) {
+      data[key] = stripLooseQuote(block.split('\n')[0] ?? '');
+      continue;
+    }
+
+    if (LOOSE_ARRAY_KEYS.has(key)) {
+      data[key] = splitLooseArray(block);
+      continue;
+    }
+
+    if (LOOSE_TEXT_KEYS.has(key)) {
+      data[key] = block;
+      continue;
+    }
+
+    if (key === '属性') {
+      data.属性 = parseLooseKVBlock(lines ?? [], LOOSE_ATTRIBUTE_KEYS);
+      continue;
+    }
+
+    if (key === '资源') {
+      data.资源 = parseLooseKVBlock(lines ?? [], LOOSE_RESOURCE_KEYS) as CharacterData['资源'];
+    }
+  }
+
+  const normalizedData = normalizeCharacterDataKeys(data);
+  const hasName = typeof normalizedData.姓名 === 'string' && normalizedData.姓名.trim().length > 0;
+  const hasBasicInfo = !!(normalizedData.等级 || normalizedData.种族 || normalizedData.生命层级);
+  const hasProfileText = !!(normalizedData.性格 || normalizedData.外貌特质 || normalizedData.背景故事);
+
+  if (!hasName || !hasBasicInfo || !hasProfileText) {
+    return {
+      success: false,
+      error: {
+        message: '宽松读取失败：没有抓到足够的角色字段。',
+        tips: [
+          '宽松读取至少需要识别到姓名、一个基础字段（等级/种族/生命层级）和一段档案文本。',
+          '请确认关键字仍写成类似 "姓名:"、"性格:"、"外貌特质:" 的格式。',
+          '如果内容被其他脚本改到完全没有键名，仍然需要手动修正原文。',
+        ],
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: normalizedData,
+    mode: 'loose',
+    warnings: ['当前使用宽松读取：部分列表、装备、技能或登神长阶结构可能无法完整恢复，导入前请先检查内容。'],
+  };
+}
+
 export function parseCharacterYaml(yamlText: string): ParseResult {
   const prepared = prepareYaml(yamlText);
   try {
@@ -296,7 +464,7 @@ export function parseCharacterYaml(yamlText: string): ParseResult {
     if (!parsedData) throw new Error('解析结果为空');
 
     const normalizedData = normalizeCharacterDataKeys(parsedData);
-    return { success: true, data: normalizedData };
+    return { success: true, data: normalizedData, mode: 'strict' };
   } catch (err) {
     return {
       success: false,

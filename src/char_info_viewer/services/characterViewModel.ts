@@ -1,8 +1,18 @@
-import { characterImageMap } from '../characterImageMap';
+import { characterStoryBookMap, type CharacterStoryBookLink } from '../characterStoryBookMap';
+import { resolveSpecialNpcProfile, type SpecialNpcProfile } from '../specialNpcProfiles';
 import type { CharacterData } from '../types';
 import { getSmartArray, hasArrayContent, hasText, normalizeDisplayText } from './common';
+import { normalizeImageUrlForBrowser } from './imageUrl';
 
-export type TabKey = 'profile' | 'skills' | 'equipment' | 'inventory' | 'divinity' | 'backstory' | 'statusEffects';
+export type TabKey =
+  | 'profile'
+  | 'skills'
+  | 'equipment'
+  | 'inventory'
+  | 'divinity'
+  | 'characterStory'
+  | 'backstory'
+  | 'statusEffects';
 
 export type ViewTab = {
   key: TabKey;
@@ -34,7 +44,7 @@ export type DivinityKingdom = {
   description: string;
 };
 
-export type CharacterLayoutKind = 'default' | 'portrait';
+export type CharacterLayoutKind = 'default' | 'special_npc';
 
 export type CharacterViewModel = {
   nameText: string;
@@ -50,6 +60,7 @@ export type CharacterViewModel = {
   backstoryText: string;
   imageUrl: string;
   layoutKind: CharacterLayoutKind;
+  specialNpcProfile: SpecialNpcProfile | null;
   resourceBoxes: ResourceBox[];
   skills: ItemObject[];
   equipments: ItemObject[];
@@ -60,6 +71,7 @@ export type CharacterViewModel = {
   divinityElements: ItemObject[];
   divinityPowers: ItemObject[];
   divinityLaws: ItemObject[];
+  storyBookLink: CharacterStoryBookLink | null;
   visibleTabs: ViewTab[];
 };
 
@@ -69,6 +81,7 @@ export const tabOrder: ViewTab[] = [
   { key: 'equipment', label: '装备' },
   { key: 'inventory', label: '背包' },
   { key: 'divinity', label: '登神长阶' },
+  { key: 'characterStory', label: '角色故事' },
   { key: 'backstory', label: '背景故事' },
   { key: 'statusEffects', label: '状态效果' },
 ];
@@ -304,10 +317,19 @@ export function statusEffectSource(item: ItemObject): string {
   return textFromUnknown(item?.来源);
 }
 
-function resolveCharacterImageUrl(data: CharacterData, nameText: string): string {
+type CharacterImageResolution = {
+  url: string;
+  source: 'map' | 'data' | 'none';
+};
+
+function resolveCharacterImage(data: CharacterData, nameText: string): CharacterImageResolution {
+  const specialNpcProfile = resolveSpecialNpcProfile(nameText);
+  if (specialNpcProfile) return { url: specialNpcProfile.imageUrl, source: 'map' };
+
   const fromData = textFromUnknown(pickField(data, '角色图片', '立绘', '图片', 'portrait', 'image'));
-  if (fromData) return fromData;
-  return characterImageMap[nameText] || '';
+  if (fromData) return { url: normalizeImageUrlForBrowser(fromData), source: 'data' };
+
+  return { url: '', source: 'none' };
 }
 
 export function buildCharacterViewModel(data: CharacterData): CharacterViewModel {
@@ -349,7 +371,10 @@ export function buildCharacterViewModel(data: CharacterData): CharacterViewModel
   const divinityLaws = asNamedObjectArray(divinityRoot.法则 || data.法则);
   const skills = asNamedObjectArray(data.技能);
   const equipments = asNamedObjectArray(data.装备);
-  const imageUrl = resolveCharacterImageUrl(data, nameText);
+  const specialNpcProfile = resolveSpecialNpcProfile(nameText);
+  const image = resolveCharacterImage(data, nameText);
+  const imageUrl = image.url;
+  const storyBookLink = characterStoryBookMap[nameText] ?? null;
   const hasDivinity =
     hasText(divinityGodTitle) ||
     !!divinityKingdom ||
@@ -364,6 +389,7 @@ export function buildCharacterViewModel(data: CharacterData): CharacterViewModel
     if (tab.key === 'equipment') return equipments.length > 0;
     if (tab.key === 'inventory') return hasInventory;
     if (tab.key === 'divinity') return hasDivinity;
+    if (tab.key === 'characterStory') return storyBookLink !== null;
     if (tab.key === 'backstory') return hasText(backstoryText);
     if (tab.key === 'statusEffects') return hasStatusEffects;
     return false;
@@ -387,7 +413,8 @@ export function buildCharacterViewModel(data: CharacterData): CharacterViewModel
     attireText: normalizeDisplayText(pickField(data, '衣物装饰', '衣物装饰') || ''),
     backstoryText,
     imageUrl,
-    layoutKind: imageUrl ? 'portrait' : 'default',
+    layoutKind: specialNpcProfile ? 'special_npc' : 'default',
+    specialNpcProfile,
     resourceBoxes,
     skills,
     equipments,
@@ -398,7 +425,7 @@ export function buildCharacterViewModel(data: CharacterData): CharacterViewModel
     divinityElements,
     divinityPowers,
     divinityLaws,
+    storyBookLink,
     visibleTabs,
   };
 }
-

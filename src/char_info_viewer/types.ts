@@ -38,6 +38,8 @@ export interface CharacterData {
 export interface ParseSuccess {
   success: true;
   data: CharacterData;
+  mode?: 'strict' | 'loose';
+  warnings?: string[];
 }
 
 export interface FriendlyYamlError {
