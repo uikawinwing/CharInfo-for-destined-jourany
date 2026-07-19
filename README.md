@@ -1,6 +1,7 @@
 # 命定之诗角色查看器
 
-一个用于 SillyTavern / 酒馆助手环境的角色信息查看器。它把 `<char_info>` 中的 YAML 角色资料渲染成可阅读的角色面板，并提供导入 MVU 变量与聊天世界书的快捷操作
+一个用于 SillyTavern / 酒馆助手环境的角色信息查看器。它把 `<char_info>`
+中的 YAML 角色资料渲染成可阅读的角色面板，并提供导入 MVU 变量与聊天世界书的快捷操作
 
 ## 功能
 
@@ -51,6 +52,33 @@
       神圣契约: 为友方目标恢复生命值，并施加祝福。
 </char_info>
 ```
+
+### 用一个占位符读取图片与主题色
+
+世界书可把图片 URL、种族强调色和生命层级强调色写入同一个聊天变量对象：
+
+```ejs
+<%_
+setLocalVar(
+  'char_info_visual_example',
+  {
+    url: 'https://example.com/character.png',
+    custom_racecolor: '#78C8F0',
+    custom_tiercolor: '#A855F7',
+  },
+  { dryRun: true },
+);
+_%>
+```
+
+LLM 只需在 `<char_info>` 内原样输出：
+
+```yaml
+角色图片: '[[char_info_visual_example]]'
+```
+
+查看器会直接读取当前聊天变量。颜色只接受
+`#RRGGBB`；缺失或无效时自动使用种族与生命层级的默认颜色。直接填写图片 URL 和旧版“占位符对应 URL 字符串”的方式仍然兼容。
 
 ## 开发说明
 

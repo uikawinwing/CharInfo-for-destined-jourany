@@ -142,6 +142,52 @@ export function hexToRgb(hex: string): string {
   return `${r}, ${g}, ${b}`;
 }
 
+export function normalizeCustomHexColor(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^#[0-9a-f]{6}$/i.test(trimmed) ? trimmed.toUpperCase() : null;
+}
+
+function normalizeVisualConfigUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? trimmed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+export function resolveCharacterVisualConfig(
+  data: CharacterData,
+  chatVariables: Record<string, unknown>,
+): CharacterData {
+  const rawImage = typeof data.角色图片 === 'string' ? data.角色图片.trim() : '';
+  const placeholder = rawImage.match(/^\[\[([a-z0-9][a-z0-9_-]*)\]\]$/i);
+  if (!placeholder) return data;
+
+  const resolved: CharacterData = { ...data, 角色图片: '' };
+  const visualConfig = chatVariables[placeholder[1]];
+
+  if (typeof visualConfig === 'string') {
+    resolved.角色图片 = normalizeVisualConfigUrl(visualConfig) ?? '';
+    return resolved;
+  }
+
+  if (!visualConfig || typeof visualConfig !== 'object' || Array.isArray(visualConfig)) return resolved;
+
+  const config = visualConfig as Record<string, unknown>;
+  const url = normalizeVisualConfigUrl(config.url);
+  const raceColor = normalizeCustomHexColor(config.custom_racecolor);
+  const tierColor = normalizeCustomHexColor(config.custom_tiercolor);
+
+  resolved.角色图片 = url ?? '';
+  if (raceColor) resolved.custom_racecolor = raceColor;
+  if (tierColor) resolved.custom_tiercolor = tierColor;
+  return resolved;
+}
+
 export function harmonizeAccent(
   hex: string,
   mixTarget = '#94a3b8',
@@ -230,8 +276,9 @@ export function resolveTheme(data: CharacterData): ThemeResolved {
   const raceRawHex = raceColorMap[raceKey] || raceColorMap.其他;
   const tierRawHex = tierColorMap[tier] || tierColorMap[1];
 
-  const raceHex = harmonizeAccent(raceRawHex, '#808080', 0.1, 84, 198);
-  const tierHex = tierRawHex;
+  const raceHex =
+    normalizeCustomHexColor(data.custom_racecolor) ?? harmonizeAccent(raceRawHex, '#808080', 0.1, 84, 198);
+  const tierHex = normalizeCustomHexColor(data.custom_tiercolor) ?? tierRawHex;
 
   return {
     tier,

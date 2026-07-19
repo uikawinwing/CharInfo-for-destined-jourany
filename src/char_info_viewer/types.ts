@@ -10,11 +10,15 @@ export interface CharacterData {
   外貌特质?: string;
   衣物装饰?: string;
   背景故事?: string;
+  登场台词?: string;
   角色图片?: string;
   立绘?: string;
+  特殊立绘?: string;
   图片?: string;
   portrait?: string;
   image?: string;
+  custom_racecolor?: string;
+  custom_tiercolor?: string;
 
   属性?: Partial<Record<'力量' | '敏捷' | '体质' | '智力' | '精神', string | number>>;
   资源?: { HP?: number; MP?: number; SP?: number };

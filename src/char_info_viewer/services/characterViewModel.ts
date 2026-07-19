@@ -1,5 +1,5 @@
 import { characterStoryBookMap, type CharacterStoryBookLink } from '../characterStoryBookMap';
-import { resolveSpecialNpcProfile, type SpecialNpcProfile } from '../specialNpcProfiles';
+import { resolveSpecialNpcProfile, resolveSpecialPortraitProfile, type SpecialNpcProfile } from '../specialNpcProfiles';
 import type { CharacterData } from '../types';
 import { getSmartArray, hasArrayContent, hasText, normalizeDisplayText } from './common';
 import { normalizeImageUrlForBrowser } from './imageUrl';
@@ -58,6 +58,7 @@ export type CharacterViewModel = {
   appearanceText: string;
   attireText: string;
   backstoryText: string;
+  entranceQuoteText: string;
   imageUrl: string;
   layoutKind: CharacterLayoutKind;
   specialNpcProfile: SpecialNpcProfile | null;
@@ -319,12 +320,24 @@ export function statusEffectSource(item: ItemObject): string {
 
 type CharacterImageResolution = {
   url: string;
-  source: 'map' | 'data' | 'none';
+  source: 'special_portrait' | 'map' | 'data' | 'none';
 };
 
-function resolveCharacterImage(data: CharacterData, nameText: string): CharacterImageResolution {
-  const specialNpcProfile = resolveSpecialNpcProfile(nameText);
-  if (specialNpcProfile) return { url: specialNpcProfile.imageUrl, source: 'map' };
+function resolveSpecialNpcProfileForData(data: CharacterData, nameText: string): SpecialNpcProfile | null {
+  const explicitPortraitUrl = textFromUnknown(
+    pickField(data, '特殊立绘', '角色图片', '立绘', '图片', 'portrait', 'image'),
+  );
+  return resolveSpecialPortraitProfile(nameText, explicitPortraitUrl) ?? resolveSpecialNpcProfile(nameText);
+}
+
+function resolveCharacterImage(
+  data: CharacterData,
+  specialNpcProfile: SpecialNpcProfile | null,
+): CharacterImageResolution {
+  if (specialNpcProfile) {
+    const source = textFromUnknown(pickField(data, '特殊立绘')) ? 'special_portrait' : 'map';
+    return { url: specialNpcProfile.imageUrl, source };
+  }
 
   const fromData = textFromUnknown(pickField(data, '角色图片', '立绘', '图片', 'portrait', 'image'));
   if (fromData) return { url: normalizeImageUrlForBrowser(fromData), source: 'data' };
@@ -371,8 +384,8 @@ export function buildCharacterViewModel(data: CharacterData): CharacterViewModel
   const divinityLaws = asNamedObjectArray(divinityRoot.法则 || data.法则);
   const skills = asNamedObjectArray(data.技能);
   const equipments = asNamedObjectArray(data.装备);
-  const specialNpcProfile = resolveSpecialNpcProfile(nameText);
-  const image = resolveCharacterImage(data, nameText);
+  const specialNpcProfile = resolveSpecialNpcProfileForData(data, nameText);
+  const image = resolveCharacterImage(data, specialNpcProfile);
   const imageUrl = image.url;
   const storyBookLink = characterStoryBookMap[nameText] ?? null;
   const hasDivinity =
@@ -412,6 +425,7 @@ export function buildCharacterViewModel(data: CharacterData): CharacterViewModel
     appearanceText: normalizeDisplayText(pickField(data, '外貌特质', '外貌特质') || ''),
     attireText: normalizeDisplayText(pickField(data, '衣物装饰', '衣物装饰') || ''),
     backstoryText,
+    entranceQuoteText: normalizeDisplayText(pickField(data, '登场台词') || ''),
     imageUrl,
     layoutKind: specialNpcProfile ? 'special_npc' : 'default',
     specialNpcProfile,

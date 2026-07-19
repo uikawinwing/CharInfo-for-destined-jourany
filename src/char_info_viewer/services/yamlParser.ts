@@ -14,6 +14,7 @@ const KEY_ALIAS_TO_SIMPLIFIED: Record<string, string> = {
   外貌特徵: '外貌特质',
   外貌特征: '外貌特质',
   衣物裝飾: '衣物装饰',
+  特殊立繪: '特殊立绘',
   屬性: '属性',
   資源: '资源',
   體質: '体质',
@@ -323,6 +324,7 @@ function stripLooseQuote(value: string): string {
 
 function normalizeLooseBlock(lines: string[]): string {
   return lines
+    .filter(line => !/^[>|][+-]?$/.test(line.trim()))
     .map(line => line.replace(/^\s*[-*]\s?/, '').trim())
     .filter(Boolean)
     .join('\n')
@@ -331,7 +333,7 @@ function normalizeLooseBlock(lines: string[]): string {
 
 function splitLooseArray(value: string): string[] {
   return value
-    .split(/[\/、，,；;\n]/g)
+    .split(/[/、，,；;\n]/g)
     .map(part => stripLooseQuote(part))
     .filter(Boolean);
 }
@@ -439,7 +441,7 @@ export function parseCharacterYamlLoose(yamlText: string): ParseResult {
     return {
       success: false,
       error: {
-        message: '宽松读取失败：没有抓到足够的角色字段。',
+        message: '三角老师这次没能修好，原始资料可能缺少关键内容。',
         tips: [
           '宽松读取至少需要识别到姓名、一个基础字段（等级/种族/生命层级）和一段档案文本。',
           '请确认关键字仍写成类似 "姓名:"、"性格:"、"外貌特质:" 的格式。',
@@ -453,7 +455,7 @@ export function parseCharacterYamlLoose(yamlText: string): ParseResult {
     success: true,
     data: normalizedData,
     mode: 'loose',
-    warnings: ['当前使用宽松读取：部分列表、装备、技能或登神长阶结构可能无法完整恢复，导入前请先检查内容。'],
+    warnings: ['宝宝，你看看我修好了沒？部分列表、装备、技能或登神长阶结构可能无法完整恢复，导入前记得先检查内容～'],
   };
 }
 

@@ -1,13 +1,8 @@
 <template>
-  <div class="viewer-root">
+  <div class="viewer-root" :class="{ 'special-npc-viewer-root': shouldShowSpecialNpcLayout }">
     <div v-if="parseError" class="error-card">
-      <h3>⚠️ YAML 解析失败</h3>
+      <h3>⚠️ 资料暂时无法显示</h3>
       <div class="error-body">
-        <div class="yaml-error-row yaml-error-sub"><b>技术信息：</b>{{ parseError.message }}</div>
-        <div v-if="parseError.line !== undefined" class="yaml-error-row">
-          <b>定位：</b>第 {{ (parseError.line ?? 0) + 1 }} 行，第 {{ (parseError.column ?? 0) + 1 }} 列
-        </div>
-
         <div v-if="parseErrorTips.length > 0" class="yaml-fix-box">
           <div class="yaml-fix-title">宝宝别急，三角老师带你一步步排查</div>
           <ul class="yaml-fix-list">
@@ -17,10 +12,17 @@
 
         <div class="yaml-rescue-box">
           <button class="yaml-rescue-button" type="button" :disabled="looseParsing" @click="tryLooseParse">
-            {{ looseParsing ? '读取中...' : '尝试宽松读取' }}
+            {{ looseParsing ? '三角老师修复中...' : '点我召唤' }}
           </button>
-          <p>这会改用“按关键字之间的内容切段”的方式救回资料，适合缩进被弄乱时临时查看。</p>
         </div>
+
+        <details class="yaml-error-details">
+          <summary>查看技术信息（可选）</summary>
+          <div class="yaml-error-row yaml-error-sub"><b>错误信息：</b>{{ parseError.message }}</div>
+          <div v-if="parseError.line !== undefined" class="yaml-error-row">
+            <b>定位：</b>第 {{ (parseError.line ?? 0) + 1 }} 行，第 {{ (parseError.column ?? 0) + 1 }} 列
+          </div>
+        </details>
 
         <template v-if="parseError.cleanedLine">
           <div class="yaml-error-title">系统定位到的出错行（请重点检查）</div>
@@ -37,13 +39,15 @@
       </div>
     </div>
 
+    <div v-else-if="loadingSpecialNpc" class="loading-card">正在读取专属角色资料...</div>
+
     <template v-else-if="sheetData">
       <div v-if="looseParseWarning" class="parse-warning-card">
         {{ looseParseWarning }}
       </div>
 
       <SpecialNpcCharacterSheet
-        v-if="isSpecialNpcLayout && vm"
+        v-if="shouldShowSpecialNpcLayout && vm"
         :vm="vm"
         :attributes="attributes"
         :importing="importing"
@@ -53,239 +57,167 @@
         @toggle-import-menu="toggleImportMenu"
         @import-mvu="onImportMvu"
         @import-worldbook="onImportWorldbook"
+        @fallback-to-default="useSpecialNpcFallback"
       />
 
       <div v-else :class="[wrapperClasses, { 'portrait-mode': isPortraitLayout }]">
-      <div class="frame-layer" :class="{ show: tierNumber >= 5 }" aria-hidden="true">
-        <svg class="frame-svg frame-top" viewBox="0 0 400 100" preserveAspectRatio="none">
-          <path d="M 5,100 A 195,80 0 0,1 395,100" />
-          <path d="M 15,100 A 185,70 0 0,1 385,100" stroke-width="1" opacity="0.6" />
-          <line x1="60" y1="60" x2="60" y2="90" stroke-width="1" />
-          <line x1="340" y1="60" x2="340" y2="90" stroke-width="1" />
-          <circle cx="60" cy="92" r="3" fill="var(--tier-color)" stroke="none" />
-          <circle cx="340" cy="92" r="3" fill="var(--tier-color)" stroke="none" />
-          <path
-            d="M 200,2 L 205,15 L 220,20 L 205,25 L 200,38 L 195,25 L 180,20 L 195,15 Z"
-            fill="var(--tier-color)"
-            stroke="none"
-          />
-        </svg>
-        <svg class="frame-svg frame-body" viewBox="0 0 400 100" preserveAspectRatio="none">
-          <line x1="5" y1="0" x2="5" y2="100" />
-          <line x1="395" y1="0" x2="395" y2="100" />
-          <line x1="15" y1="0" x2="15" y2="98" stroke-width="1" opacity="0.6" />
-          <line x1="385" y1="0" x2="385" y2="98" stroke-width="1" opacity="0.6" />
-          <line x1="5" y1="100" x2="395" y2="100" />
-        </svg>
-      </div>
+        <div class="frame-layer" :class="{ show: tierNumber >= 5 }" aria-hidden="true">
+          <svg class="frame-svg frame-top" viewBox="0 0 400 100" preserveAspectRatio="none">
+            <path d="M 5,100 A 195,80 0 0,1 395,100" />
+            <path d="M 15,100 A 185,70 0 0,1 385,100" stroke-width="1" opacity="0.6" />
+            <line x1="60" y1="60" x2="60" y2="90" stroke-width="1" />
+            <line x1="340" y1="60" x2="340" y2="90" stroke-width="1" />
+            <circle cx="60" cy="92" r="3" fill="var(--tier-color)" stroke="none" />
+            <circle cx="340" cy="92" r="3" fill="var(--tier-color)" stroke="none" />
+            <path
+              d="M 200,2 L 205,15 L 220,20 L 205,25 L 200,38 L 195,25 L 180,20 L 195,15 Z"
+              fill="var(--tier-color)"
+              stroke="none"
+            />
+          </svg>
+          <svg class="frame-svg frame-body" viewBox="0 0 400 100" preserveAspectRatio="none">
+            <line x1="5" y1="0" x2="5" y2="100" />
+            <line x1="395" y1="0" x2="395" y2="100" />
+            <line x1="15" y1="0" x2="15" y2="98" stroke-width="1" opacity="0.6" />
+            <line x1="385" y1="0" x2="385" y2="98" stroke-width="1" opacity="0.6" />
+            <line x1="5" y1="100" x2="395" y2="100" />
+          </svg>
+        </div>
 
-      <div ref="bgLayerRef" class="card-background-layer">
-        <canvas id="particle-canvas" ref="canvasRef"></canvas>
-      </div>
+        <div ref="bgLayerRef" class="card-background-layer">
+          <canvas id="particle-canvas" ref="canvasRef"></canvas>
+        </div>
 
-      <div class="sheet-content-wrapper">
-        <header v-if="!isPortraitLayout" class="sheet-header">
-          <span class="level-badge">Lv.{{ levelText }}</span>
-          <h1 class="char-name">{{ nameText }}</h1>
-          <div class="char-meta-row">
-            <span>{{ raceText }}</span>
-            <span class="meta-separator">◆</span>
-            <span>{{ identityText }}</span>
-            <span class="meta-separator">◆</span>
-            <span>{{ classText }}</span>
-            <span class="meta-separator">◆</span>
-            <span class="tier-name">{{ tierText }}</span>
-          </div>
-        </header>
-
-        <div class="sheet-body" :class="{ 'portrait-body': isPortraitLayout, 'is-detail-tab': isPortraitDetailTab }">
-          <section v-if="isPortraitLayout" class="portrait-main-panel">
-            <div class="portrait-image-shell">
-              <img class="portrait-image" :src="portraitImageUrl" :alt="nameText" />
+        <div class="sheet-content-wrapper">
+          <header v-if="!isPortraitLayout" class="sheet-header">
+            <span class="level-badge">Lv.{{ levelText }}</span>
+            <h1 class="char-name">{{ nameText }}</h1>
+            <div class="char-meta-row">
+              <span>{{ raceText }}</span>
+              <span class="meta-separator">◆</span>
+              <span>{{ identityText }}</span>
+              <span class="meta-separator">◆</span>
+              <span>{{ classText }}</span>
+              <span class="meta-separator">◆</span>
+              <span class="tier-name">{{ tierText }}</span>
             </div>
-            <div class="portrait-info-panel">
-              <span class="level-badge portrait-level-badge">Lv.{{ levelText }}</span>
-              <h1 class="char-name portrait-name">{{ nameText }}</h1>
-              <div class="char-meta-row portrait-meta-row">
-                <span>{{ raceText }}</span>
-                <span class="meta-separator">◆</span>
-                <span>{{ identityText }}</span>
-                <span class="meta-separator">◆</span>
-                <span>{{ classText }}</span>
-                <span class="meta-separator">◆</span>
-                <span class="tier-name">{{ tierText }}</span>
-              </div>
-              <div class="portrait-compact-stats">
-                <span v-for="attr in attributes" :key="`portrait-${attr.key}`">
-                  {{ attr.short }} {{ attr.total }}
-                </span>
-              </div>
-              <div v-if="resourceBoxes.length > 0" class="portrait-compact-resources">
-                <span v-for="resource in resourceBoxes" :key="resource.key">
-                  {{ resource.label }} {{ resource.value }}
-                </span>
-              </div>
-            </div>
-          </section>
+          </header>
 
-          <template v-else>
-            <div class="attributes-grid">
-              <div
-                v-for="attr in attributes"
-                :key="attr.key"
-                class="attribute-item"
-                :class="{
-                  'show-formula': attr.showFormula,
-                  'has-formula': !!attr.formula,
-                  'has-warning': attr.isTotalAbnormal || attr.hasFormulaWarning,
-                }"
-                @click="toggleAttributeFormula(attr.key)"
-              >
-                <span class="attribute-name">{{ attr.short }}</span>
-                <span class="attribute-total" :class="{ 'is-warning': attr.isTotalAbnormal }">{{ attr.total }}</span>
-                <span v-if="attr.formula" class="attribute-formula">
-                  <template v-for="part in attr.formulaParts" :key="`${attr.key}-${part.index}-${part.text}`">
-                    <span v-if="part.index > 0" class="formula-part-separator">+</span>
-                    <span class="formula-part" :class="{ 'formula-part-warning': part.isWarning }">{{ part.text }}</span>
-                  </template>
-                </span>
+          <div class="sheet-body" :class="{ 'portrait-body': isPortraitLayout, 'is-detail-tab': isPortraitDetailTab }">
+            <section v-if="isPortraitLayout" class="portrait-main-panel">
+              <div class="portrait-image-shell">
+                <img class="portrait-image" :src="portraitImageUrl" :alt="nameText" />
               </div>
-            </div>
-
-            <div v-if="resourceBoxes.length > 0" class="resource-grid">
-              <div v-for="resource in resourceBoxes" :key="resource.key" class="resource-item">
-                <span class="resource-name">{{ resource.label }}</span>
-                <span class="resource-value">{{ resource.value }}</span>
-              </div>
-            </div>
-          </template>
-
-          <div :class="isPortraitLayout ? 'portrait-tab-nav' : 'tab-nav'">
-            <button
-              v-for="tab in visibleTabs"
-              :key="tab.key"
-              class="tab-button"
-              :class="{ active: activeTab === tab.key }"
-              @click="activeTab = tab.key"
-            >
-              {{ tab.label }}
-            </button>
-          </div>
-
-          <section v-if="!isPortraitLayout || activeTab !== 'profile'" class="tab-content">
-            <template v-if="activeTab === 'profile'">
-              <div class="profile-grid">
-                <div class="profile-row">
-                  <div class="profile-cell">
-                    <template v-if="personalityText">
-                      <h3 class="subsection-title">性格</h3>
-                      <div class="story profile-panel">{{ personalityText }}</div>
-                    </template>
-                  </div>
-
-                  <div class="profile-cell">
-                    <template v-if="appearanceText">
-                      <h3 class="subsection-title">外貌特质</h3>
-                      <div class="story profile-panel">{{ appearanceText }}</div>
-                    </template>
-                  </div>
+              <div class="portrait-info-panel">
+                <span class="level-badge portrait-level-badge">Lv.{{ levelText }}</span>
+                <h1 class="char-name portrait-name">{{ nameText }}</h1>
+                <div class="char-meta-row portrait-meta-row">
+                  <span>{{ raceText }}</span>
+                  <span class="meta-separator">◆</span>
+                  <span>{{ identityText }}</span>
+                  <span class="meta-separator">◆</span>
+                  <span>{{ classText }}</span>
+                  <span class="meta-separator">◆</span>
+                  <span class="tier-name">{{ tierText }}</span>
                 </div>
-
-                <div class="profile-row">
-                  <div class="profile-cell">
-                    <template v-if="likesText">
-                      <h3 class="subsection-title">喜爱</h3>
-                      <div class="story profile-panel">{{ likesText }}</div>
-                    </template>
-                  </div>
-
-                  <div class="profile-cell">
-                    <template v-if="attireText">
-                      <h3 class="subsection-title">衣物装饰</h3>
-                      <div class="story profile-panel">{{ attireText }}</div>
-                    </template>
-                  </div>
+                <div class="portrait-compact-stats">
+                  <span v-for="attr in attributes" :key="`portrait-${attr.key}`">
+                    {{ attr.short }} {{ attr.total }}
+                  </span>
+                </div>
+                <div v-if="resourceBoxes.length > 0" class="portrait-compact-resources">
+                  <span v-for="resource in resourceBoxes" :key="resource.key">
+                    {{ resource.label }} {{ resource.value }}
+                  </span>
                 </div>
               </div>
-            </template>
+            </section>
 
-            <template v-else-if="activeTab === 'skills'">
-              <article v-for="(item, index) in skills" :key="`skill-${index}-${itemName(item)}`" class="card">
-                <div class="card-header">
-                  <h3 class="card-title" :class="qualityClass(item)">{{ itemName(item) }}</h3>
-                  <span v-if="itemQuality(item)" class="card-subtitle" :class="qualityClass(item)">{{
-                    itemQuality(item)
-                  }}</span>
-                </div>
-                <div class="card-body">
-                  <div v-if="itemTags(item).length > 0" class="card-tags">
-                    <span v-for="tag in itemTags(item)" :key="`skill-tag-${index}-${tag}`" class="card-tag">
-                      {{ tag }}
-                    </span>
-                  </div>
-                  <p v-if="itemType(item)"><span class="card-label">类型:</span>{{ itemType(item) }}</p>
-                  <p v-if="itemCost(item)"><span class="card-label">消耗:</span>{{ itemCost(item) }}</p>
-                  <template v-if="itemEffectEntries(item).length > 0">
-                    <p><span class="card-label">效果:</span></p>
-                    <ul class="effect-list">
-                      <li
-                        v-for="(entry, effectIndex) in itemEffectEntries(item)"
-                        :key="`skill-effect-${index}-${effectIndex}-${entry.name}`"
-                        class="effect-item"
-                      >
-                        <span v-if="!entry.fallback" class="effect-name">{{ entry.name }}</span>
-                        <span class="effect-text">{{ entry.content }}</span>
-                      </li>
-                    </ul>
-                  </template>
-                  <p v-else><span class="card-label">效果:</span>无</p>
-                  <p v-if="itemDescription(item)" class="card-description">{{ itemDescription(item) }}</p>
-                </div>
-              </article>
-            </template>
-
-            <template v-else-if="activeTab === 'equipment'">
-              <article v-for="(item, index) in equipments" :key="`equip-${index}-${itemName(item)}`" class="card">
-                <div class="card-header">
-                  <h3 class="card-title" :class="qualityClass(item)">{{ itemName(item) }}</h3>
-                  <span v-if="itemQuality(item)" class="card-subtitle" :class="qualityClass(item)">{{
-                    itemQuality(item)
-                  }}</span>
-                </div>
-                <div class="card-body">
-                  <div v-if="itemTags(item).length > 0" class="card-tags">
-                    <span v-for="tag in itemTags(item)" :key="`equip-tag-${index}-${tag}`" class="card-tag">
-                      {{ tag }}
-                    </span>
-                  </div>
-                  <p v-if="itemType(item)"><span class="card-label">类型:</span>{{ itemType(item) }}</p>
-                  <template v-if="itemEffectEntries(item).length > 0">
-                    <p><span class="card-label">效果:</span></p>
-                    <ul class="effect-list">
-                      <li
-                        v-for="(entry, effectIndex) in itemEffectEntries(item)"
-                        :key="`equip-effect-${index}-${effectIndex}-${entry.name}`"
-                        class="effect-item"
-                      >
-                        <span v-if="!entry.fallback" class="effect-name">{{ entry.name }}</span>
-                        <span class="effect-text">{{ entry.content }}</span>
-                      </li>
-                    </ul>
-                  </template>
-                  <p v-else><span class="card-label">效果:</span>无</p>
-                  <p v-if="itemDescription(item)" class="card-description">{{ itemDescription(item) }}</p>
-                </div>
-              </article>
-            </template>
-
-            <template v-else-if="activeTab === 'inventory'">
-              <template v-for="section in inventorySections" :key="section.key">
-                <h3 class="subsection-title">{{ section.title }}</h3>
-                <article
-                  v-for="(item, index) in section.items"
-                  :key="`${section.key}-${index}-${itemName(item)}`"
-                  class="card"
+            <template v-else>
+              <div class="attributes-grid">
+                <div
+                  v-for="attr in attributes"
+                  :key="attr.key"
+                  class="attribute-item"
+                  :class="{
+                    'show-formula': attr.showFormula,
+                    'has-formula': !!attr.formula,
+                    'has-warning': attr.isTotalAbnormal || attr.hasFormulaWarning,
+                  }"
+                  @click="toggleAttributeFormula(attr.key)"
                 >
+                  <span class="attribute-name">{{ attr.short }}</span>
+                  <span class="attribute-total" :class="{ 'is-warning': attr.isTotalAbnormal }">{{ attr.total }}</span>
+                  <span v-if="attr.formula" class="attribute-formula">
+                    <template v-for="part in attr.formulaParts" :key="`${attr.key}-${part.index}-${part.text}`">
+                      <span v-if="part.index > 0" class="formula-part-separator">+</span>
+                      <span class="formula-part" :class="{ 'formula-part-warning': part.isWarning }">{{
+                        part.text
+                      }}</span>
+                    </template>
+                  </span>
+                </div>
+              </div>
+
+              <div v-if="resourceBoxes.length > 0" class="resource-grid">
+                <div v-for="resource in resourceBoxes" :key="resource.key" class="resource-item">
+                  <span class="resource-name">{{ resource.label }}</span>
+                  <span class="resource-value">{{ resource.value }}</span>
+                </div>
+              </div>
+            </template>
+
+            <div :class="isPortraitLayout ? 'portrait-tab-nav' : 'tab-nav'">
+              <button
+                v-for="tab in visibleTabs"
+                :key="tab.key"
+                class="tab-button"
+                :class="{ active: activeTab === tab.key }"
+                @click="activeTab = tab.key"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+
+            <section v-if="!isPortraitLayout || activeTab !== 'profile'" class="tab-content">
+              <template v-if="activeTab === 'profile'">
+                <div class="profile-grid">
+                  <div class="profile-row">
+                    <div class="profile-cell">
+                      <template v-if="personalityText">
+                        <h3 class="subsection-title">性格</h3>
+                        <div class="story profile-panel">{{ personalityText }}</div>
+                      </template>
+                    </div>
+
+                    <div class="profile-cell">
+                      <template v-if="appearanceText">
+                        <h3 class="subsection-title">外貌特质</h3>
+                        <div class="story profile-panel">{{ appearanceText }}</div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <div class="profile-row">
+                    <div class="profile-cell">
+                      <template v-if="likesText">
+                        <h3 class="subsection-title">喜爱</h3>
+                        <div class="story profile-panel">{{ likesText }}</div>
+                      </template>
+                    </div>
+
+                    <div class="profile-cell">
+                      <template v-if="attireText">
+                        <h3 class="subsection-title">衣物装饰</h3>
+                        <div class="story profile-panel">{{ attireText }}</div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <template v-else-if="activeTab === 'skills'">
+                <article v-for="(item, index) in skills" :key="`skill-${index}-${itemName(item)}`" class="card">
                   <div class="card-header">
                     <h3 class="card-title" :class="qualityClass(item)">{{ itemName(item) }}</h3>
                     <span v-if="itemQuality(item)" class="card-subtitle" :class="qualityClass(item)">{{
@@ -294,17 +226,18 @@
                   </div>
                   <div class="card-body">
                     <div v-if="itemTags(item).length > 0" class="card-tags">
-                      <span v-for="tag in itemTags(item)" :key="`${section.key}-${index}-${tag}`" class="card-tag">
+                      <span v-for="tag in itemTags(item)" :key="`skill-tag-${index}-${tag}`" class="card-tag">
                         {{ tag }}
                       </span>
                     </div>
                     <p v-if="itemType(item)"><span class="card-label">类型:</span>{{ itemType(item) }}</p>
-                    <template v-if="itemEffectEntriesOrDescription(item).length > 0">
+                    <p v-if="itemCost(item)"><span class="card-label">消耗:</span>{{ itemCost(item) }}</p>
+                    <template v-if="itemEffectEntries(item).length > 0">
                       <p><span class="card-label">效果:</span></p>
                       <ul class="effect-list">
                         <li
-                          v-for="(entry, effectIndex) in itemEffectEntriesOrDescription(item)"
-                          :key="`${section.key}-${index}-${effectIndex}-${entry.name}`"
+                          v-for="(entry, effectIndex) in itemEffectEntries(item)"
+                          :key="`skill-effect-${index}-${effectIndex}-${entry.name}`"
                           class="effect-item"
                         >
                           <span v-if="!entry.fallback" class="effect-name">{{ entry.name }}</span>
@@ -313,118 +246,192 @@
                       </ul>
                     </template>
                     <p v-else><span class="card-label">效果:</span>无</p>
-                    <p v-if="itemDescription(item) && itemEffectEntries(item).length > 0" class="card-description">
-                      {{ itemDescription(item) }}
+                    <p v-if="itemDescription(item)" class="card-description">{{ itemDescription(item) }}</p>
+                  </div>
+                </article>
+              </template>
+
+              <template v-else-if="activeTab === 'equipment'">
+                <article v-for="(item, index) in equipments" :key="`equip-${index}-${itemName(item)}`" class="card">
+                  <div class="card-header">
+                    <h3 class="card-title" :class="qualityClass(item)">{{ itemName(item) }}</h3>
+                    <span v-if="itemQuality(item)" class="card-subtitle" :class="qualityClass(item)">{{
+                      itemQuality(item)
+                    }}</span>
+                  </div>
+                  <div class="card-body">
+                    <div v-if="itemTags(item).length > 0" class="card-tags">
+                      <span v-for="tag in itemTags(item)" :key="`equip-tag-${index}-${tag}`" class="card-tag">
+                        {{ tag }}
+                      </span>
+                    </div>
+                    <p v-if="itemType(item)"><span class="card-label">类型:</span>{{ itemType(item) }}</p>
+                    <template v-if="itemEffectEntries(item).length > 0">
+                      <p><span class="card-label">效果:</span></p>
+                      <ul class="effect-list">
+                        <li
+                          v-for="(entry, effectIndex) in itemEffectEntries(item)"
+                          :key="`equip-effect-${index}-${effectIndex}-${entry.name}`"
+                          class="effect-item"
+                        >
+                          <span v-if="!entry.fallback" class="effect-name">{{ entry.name }}</span>
+                          <span class="effect-text">{{ entry.content }}</span>
+                        </li>
+                      </ul>
+                    </template>
+                    <p v-else><span class="card-label">效果:</span>无</p>
+                    <p v-if="itemDescription(item)" class="card-description">{{ itemDescription(item) }}</p>
+                  </div>
+                </article>
+              </template>
+
+              <template v-else-if="activeTab === 'inventory'">
+                <template v-for="section in inventorySections" :key="section.key">
+                  <h3 class="subsection-title">{{ section.title }}</h3>
+                  <article
+                    v-for="(item, index) in section.items"
+                    :key="`${section.key}-${index}-${itemName(item)}`"
+                    class="card"
+                  >
+                    <div class="card-header">
+                      <h3 class="card-title" :class="qualityClass(item)">{{ itemName(item) }}</h3>
+                      <span v-if="itemQuality(item)" class="card-subtitle" :class="qualityClass(item)">{{
+                        itemQuality(item)
+                      }}</span>
+                    </div>
+                    <div class="card-body">
+                      <div v-if="itemTags(item).length > 0" class="card-tags">
+                        <span v-for="tag in itemTags(item)" :key="`${section.key}-${index}-${tag}`" class="card-tag">
+                          {{ tag }}
+                        </span>
+                      </div>
+                      <p v-if="itemType(item)"><span class="card-label">类型:</span>{{ itemType(item) }}</p>
+                      <template v-if="itemEffectEntriesOrDescription(item).length > 0">
+                        <p><span class="card-label">效果:</span></p>
+                        <ul class="effect-list">
+                          <li
+                            v-for="(entry, effectIndex) in itemEffectEntriesOrDescription(item)"
+                            :key="`${section.key}-${index}-${effectIndex}-${entry.name}`"
+                            class="effect-item"
+                          >
+                            <span v-if="!entry.fallback" class="effect-name">{{ entry.name }}</span>
+                            <span class="effect-text">{{ entry.content }}</span>
+                          </li>
+                        </ul>
+                      </template>
+                      <p v-else><span class="card-label">效果:</span>无</p>
+                      <p v-if="itemDescription(item) && itemEffectEntries(item).length > 0" class="card-description">
+                        {{ itemDescription(item) }}
+                      </p>
+                    </div>
+                  </article>
+                </template>
+              </template>
+
+              <template v-else-if="activeTab === 'divinity'">
+                <h3 v-if="divinityGodTitle" class="subsection-title divinity-main-title">{{ divinityGodTitle }}</h3>
+
+                <article v-if="divinityKingdom" class="card divinity-card">
+                  <div class="card-header">
+                    <h3 class="card-title">{{ divinityKingdom.name }}</h3>
+                  </div>
+                  <div class="card-body">
+                    <p>{{ divinityKingdom.description || '无' }}</p>
+                  </div>
+                </article>
+
+                <template v-if="divinityElements.length > 0">
+                  <h3 class="subsection-title">要素</h3>
+                  <article
+                    v-for="(item, index) in divinityElements"
+                    :key="`elem-${index}-${itemName(item)}`"
+                    class="card divinity-card"
+                  >
+                    <div class="card-header">
+                      <h3 class="card-title">{{ itemName(item) }}</h3>
+                    </div>
+                    <div class="card-body">
+                      <p>{{ itemEffectOrDescription(item) }}</p>
+                    </div>
+                  </article>
+                </template>
+
+                <template v-if="divinityPowers.length > 0">
+                  <h3 class="subsection-title">权能</h3>
+                  <article
+                    v-for="(item, index) in divinityPowers"
+                    :key="`power-${index}-${itemName(item)}`"
+                    class="card divinity-card"
+                  >
+                    <div class="card-header">
+                      <h3 class="card-title">{{ itemName(item) }}</h3>
+                    </div>
+                    <div class="card-body">
+                      <p>{{ itemEffectOrDescription(item) }}</p>
+                    </div>
+                  </article>
+                </template>
+
+                <template v-if="divinityLaws.length > 0">
+                  <h3 class="subsection-title">法则</h3>
+                  <article
+                    v-for="(item, index) in divinityLaws"
+                    :key="`law-${index}-${itemName(item)}`"
+                    class="card divinity-card"
+                  >
+                    <div class="card-header">
+                      <h3 class="card-title">{{ itemName(item) }}</h3>
+                    </div>
+                    <div class="card-body">
+                      <p v-if="itemDescription(item)">{{ itemDescription(item) }}</p>
+                      <p v-if="lawPassive(item)"><span class="card-label">被动:</span>{{ lawPassive(item) }}</p>
+                      <p v-if="lawActive(item)"><span class="card-label">主动:</span>{{ lawActive(item) }}</p>
+                    </div>
+                  </article>
+                </template>
+              </template>
+
+              <template v-else-if="activeTab === 'statusEffects'">
+                <article
+                  v-for="(item, index) in statusEffects"
+                  :key="`status-effect-${index}-${itemName(item)}`"
+                  class="card"
+                >
+                  <div class="card-header">
+                    <h3 class="card-title">{{ itemName(item) }}</h3>
+                    <span v-if="statusEffectType(item)" class="card-subtitle">{{ statusEffectType(item) }}</span>
+                  </div>
+                  <div class="card-body">
+                    <p v-if="statusEffectDescription(item)">
+                      <span class="card-label">效果:</span>{{ statusEffectDescription(item) }}
+                    </p>
+                    <p v-if="statusEffectLayers(item)">
+                      <span class="card-label">层数:</span>{{ statusEffectLayers(item) }}
+                    </p>
+                    <p v-if="statusEffectDuration(item)">
+                      <span class="card-label">剩余时间:</span>{{ statusEffectDuration(item) }}
+                    </p>
+                    <p v-if="statusEffectSource(item)">
+                      <span class="card-label">来源:</span>{{ statusEffectSource(item) }}
                     </p>
                   </div>
                 </article>
               </template>
-            </template>
 
-            <template v-else-if="activeTab === 'divinity'">
-              <h3 v-if="divinityGodTitle" class="subsection-title divinity-main-title">{{ divinityGodTitle }}</h3>
-
-              <article v-if="divinityKingdom" class="card divinity-card">
-                <div class="card-header">
-                  <h3 class="card-title">{{ divinityKingdom.name }}</h3>
-                </div>
-                <div class="card-body">
-                  <p>{{ divinityKingdom.description || '无' }}</p>
-                </div>
-              </article>
-
-              <template v-if="divinityElements.length > 0">
-                <h3 class="subsection-title">要素</h3>
-                <article
-                  v-for="(item, index) in divinityElements"
-                  :key="`elem-${index}-${itemName(item)}`"
-                  class="card divinity-card"
-                >
-                  <div class="card-header">
-                    <h3 class="card-title">{{ itemName(item) }}</h3>
-                  </div>
-                  <div class="card-body">
-                    <p>{{ itemEffectOrDescription(item) }}</p>
-                  </div>
-                </article>
+              <template v-else>
+                <div class="story">{{ backstoryText || '暂无故事' }}</div>
               </template>
+            </section>
+          </div>
 
-              <template v-if="divinityPowers.length > 0">
-                <h3 class="subsection-title">权能</h3>
-                <article
-                  v-for="(item, index) in divinityPowers"
-                  :key="`power-${index}-${itemName(item)}`"
-                  class="card divinity-card"
-                >
-                  <div class="card-header">
-                    <h3 class="card-title">{{ itemName(item) }}</h3>
-                  </div>
-                  <div class="card-body">
-                    <p>{{ itemEffectOrDescription(item) }}</p>
-                  </div>
-                </article>
-              </template>
-
-              <template v-if="divinityLaws.length > 0">
-                <h3 class="subsection-title">法则</h3>
-                <article
-                  v-for="(item, index) in divinityLaws"
-                  :key="`law-${index}-${itemName(item)}`"
-                  class="card divinity-card"
-                >
-                  <div class="card-header">
-                    <h3 class="card-title">{{ itemName(item) }}</h3>
-                  </div>
-                  <div class="card-body">
-                    <p v-if="itemDescription(item)">{{ itemDescription(item) }}</p>
-                    <p v-if="lawPassive(item)"><span class="card-label">被动:</span>{{ lawPassive(item) }}</p>
-                    <p v-if="lawActive(item)"><span class="card-label">主动:</span>{{ lawActive(item) }}</p>
-                  </div>
-                </article>
-              </template>
-            </template>
-
-            <template v-else-if="activeTab === 'statusEffects'">
-              <article
-                v-for="(item, index) in statusEffects"
-                :key="`status-effect-${index}-${itemName(item)}`"
-                class="card"
-              >
-                <div class="card-header">
-                  <h3 class="card-title">{{ itemName(item) }}</h3>
-                  <span v-if="statusEffectType(item)" class="card-subtitle">{{ statusEffectType(item) }}</span>
-                </div>
-                <div class="card-body">
-                  <p v-if="statusEffectDescription(item)">
-                    <span class="card-label">效果:</span>{{ statusEffectDescription(item) }}
-                  </p>
-                  <p v-if="statusEffectLayers(item)">
-                    <span class="card-label">层数:</span>{{ statusEffectLayers(item) }}
-                  </p>
-                  <p v-if="statusEffectDuration(item)">
-                    <span class="card-label">剩余时间:</span>{{ statusEffectDuration(item) }}
-                  </p>
-                  <p v-if="statusEffectSource(item)">
-                    <span class="card-label">来源:</span>{{ statusEffectSource(item) }}
-                  </p>
-                </div>
-              </article>
-            </template>
-
-            <template v-else>
-              <div class="story">{{ backstoryText || '暂无故事' }}</div>
-            </template>
-          </section>
+          <button id="import-action-btn" :disabled="importing" @click.stop="toggleImportMenu">
+            {{ importButtonText }}
+          </button>
+          <div id="import-action-menu" :class="{ show: showImportMenu }">
+            <button type="button" :disabled="importing" @click="onImportMvu">导入到 MVU 变量</button>
+            <button type="button" :disabled="importing" @click="onImportWorldbook">导入到 聊天世界书</button>
+          </div>
         </div>
-
-        <button id="import-action-btn" :disabled="importing" @click.stop="toggleImportMenu">
-          {{ importButtonText }}
-        </button>
-        <div id="import-action-menu" :class="{ show: showImportMenu }">
-          <button type="button" :disabled="importing" @click="onImportMvu">导入到 MVU 变量</button>
-          <button type="button" :disabled="importing" @click="onImportWorldbook">导入到 聊天世界书</button>
-        </div>
-      </div>
       </div>
     </template>
 
@@ -433,6 +440,7 @@
 </template>
 
 <script setup lang="ts">
+import { waitUntil } from 'async-wait-until';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
 
 import {
@@ -463,19 +471,22 @@ import {
   statusEffectType,
   type TabKey,
 } from './services/characterViewModel';
-import { importToMvuVariables, saveToChatWorldbook } from './services/importService';
+import { importToMvuVariables, mergeSpecialNpcIntoMvuData, saveToChatWorldbook } from './services/importService';
 import { createParticleEngine, type ParticleEngine } from './services/particleEngine';
-import { applyTheme, resolveTheme } from './services/themeService';
+import { applyTheme, resolveCharacterVisualConfig, resolveTheme } from './services/themeService';
 import { parseCharacterYaml, parseCharacterYamlLoose } from './services/yamlParser';
+import { loadSpecialNpcCharacterReference, parseSpecialNpcCharacterReference } from './specialNpcCharacterData';
 import type { CharacterData, FriendlyYamlError, ThemeResolved } from './types';
 import SpecialNpcCharacterSheet from './components/specialNpc/SpecialNpcCharacterSheet.vue';
 
 const sheetData = ref<CharacterData | null>(null);
+const mvuImportData = ref<CharacterData | null>(null);
 const parseError = ref<FriendlyYamlError | null>(null);
 const originalYamlText = ref('');
-const parseMode = ref<'strict' | 'loose'>('strict');
+const parseMode = ref<'strict' | 'loose' | 'builtin'>('strict');
 const parseWarnings = ref<string[]>([]);
 const looseParsing = ref(false);
+const loadingSpecialNpc = ref(false);
 const theme = ref<ThemeResolved | null>(null);
 const activeTab = ref<TabKey>('profile');
 
@@ -488,16 +499,23 @@ const importing = ref(false);
 const defaultImportButtonText = '📥';
 const importButtonText = ref(defaultImportButtonText);
 let importButtonResetTimer: ReturnType<typeof setTimeout> | null = null;
+let specialNpcAutoImportStarted = false;
 
 const defaultParseErrorTips = [
-  '1. 先看这行里小箭头 ^ 指着哪里，就改那里',
-  '2. 看"键: 值"的格式有沒有问题（通常是多了个冒号或内容写法不对）',
-  '3. 看这一行开头前面的空格，尽量和附近长得像的行保持一样多（缩进错误）',
-  '4. 内容可能缺少引号、括号，或上一行没有正确结束',
+  '1. 检查一下有没有正则/脚本会影响正文排版？←体感最多是这个',
+  '2. 会不会是上一行或本行缺少冒号？确认格式是“键: 值”',
+  '3. 如果值里有半角冒号 :、[方括号]或“引号”，把整段值用"英文双引"号包住',
+  '4. 如果这是多行文本，键后面写 "|"，然后下一行开始要统一空两格（缩进两个空格）',
+  '5. 试完还是不行吗？宝宝别急，你可以召唤三角老师，我尝试隔空帮你修一下好了（但我不保证修好！）',
 ];
 
-const parseErrorTips = computed(() => parseError.value?.tips?.length ? parseError.value.tips : defaultParseErrorTips);
-const looseParseWarning = computed(() => (parseMode.value === 'loose' ? parseWarnings.value[0] || '当前使用宽松读取，导入前请先检查内容。' : ''));
+const parseErrorTips = computed(() => defaultParseErrorTips);
+const looseParseWarning = computed(() =>
+  parseMode.value === 'loose'
+    ? parseWarnings.value[0] ||
+      '宝宝，你看看我修好了沒？部分列表、装备、技能或登神长阶结构可能无法完整恢复，导入前记得先检查内容～'
+    : '',
+);
 
 const attributeLabelMap: Record<string, string> = {
   力量: '力',
@@ -516,6 +534,8 @@ const wrapperClasses = computed(() => ({
 
 const vm = computed(() => (sheetData.value ? buildCharacterViewModel(sheetData.value) : null));
 const isSpecialNpcLayout = computed(() => vm.value?.layoutKind === 'special_npc');
+const specialNpcFallbackActive = ref(false);
+const shouldShowSpecialNpcLayout = computed(() => isSpecialNpcLayout.value && !specialNpcFallbackActive.value);
 const isPortraitLayout = computed(() => false);
 const isPortraitDetailTab = computed(() => isPortraitLayout.value && activeTab.value !== 'profile');
 const portraitImageUrl = computed(() => vm.value?.imageUrl || '');
@@ -605,19 +625,46 @@ function setupParticleEngine() {
   engine.start();
 }
 
-function initFromYaml() {
+async function initFromYaml() {
   const scriptElement = document.getElementById('data-source');
   const yamlText = scriptElement?.textContent?.trim() || '';
 
   originalYamlText.value = yamlText;
   sheetData.value = null;
+  mvuImportData.value = null;
   parseError.value = null;
   parseMode.value = 'strict';
   parseWarnings.value = [];
   theme.value = null;
+  loadingSpecialNpc.value = false;
 
   if (!yamlText) {
     parseError.value = { message: '未检测到 YAML 数据（#data-source 为空）。' };
+    return;
+  }
+
+  const specialNpcReference = parseSpecialNpcCharacterReference(yamlText);
+  if (specialNpcReference.kind === 'reference') {
+    loadingSpecialNpc.value = true;
+    try {
+      const specialNpcData = await loadSpecialNpcCharacterReference(specialNpcReference.reference);
+      mvuImportData.value = specialNpcData.injectData;
+      applyParsedCharacterData(specialNpcData.data, 'builtin');
+      await nextTick();
+      setupParticleEngine();
+      void autoImportSpecialNpc(
+        specialNpcData.injectData,
+        specialNpcData.appearVariableName,
+        specialNpcData.data.姓名 || specialNpcData.reference,
+      );
+    } catch (err: any) {
+      const message = err?.message || String(err);
+      console.error('[CharInfo Viewer] Special NPC profile load failed:', err);
+      parseError.value = { message: `专属角色资料加载失败：${message}` };
+      if (typeof toastr !== 'undefined') toastr.error(`专属角色资料加载失败：${message}`);
+    } finally {
+      loadingSpecialNpc.value = false;
+    }
     return;
   }
 
@@ -632,13 +679,62 @@ function initFromYaml() {
   nextTick(() => setupParticleEngine());
 }
 
-function applyParsedCharacterData(data: CharacterData, mode: 'strict' | 'loose', warnings: string[] = []) {
-  sheetData.value = data;
+async function autoImportSpecialNpc(data: CharacterData, appearVariableName: string, characterName: string) {
+  if (specialNpcAutoImportStarted) return;
+  specialNpcAutoImportStarted = true;
+  let eventListener: EventOnReturn | null = null;
+
+  try {
+    await waitGlobalInitialized('Mvu');
+    const targetScope = { type: 'message', message_id: getCurrentMessageId() } as const;
+    let successToastShown = false;
+
+    const mergeIntoFinalVariables = (variables: Mvu.MvuData) => {
+      const result = mergeSpecialNpcIntoMvuData(data, appearVariableName, characterName, variables, !successToastShown);
+      if (result === 'imported') successToastShown = true;
+      return result;
+    };
+
+    eventListener = eventMakeLast(Mvu.events.VARIABLE_UPDATE_ENDED, variables => {
+      mergeIntoFinalVariables(variables);
+    });
+
+    await waitUntil(() => _.has(Mvu.getMvuData(targetScope), 'stat_data'));
+
+    const currentVariables = Mvu.getMvuData(targetScope);
+    if (mergeIntoFinalVariables(currentVariables) === 'imported') {
+      await Mvu.replaceMvuData(currentVariables, targetScope);
+    }
+    eventListener.stop();
+    eventListener = null;
+
+    const verifiedVariables = Mvu.getMvuData(targetScope);
+    const characterInserted = _.has(verifiedVariables, `stat_data.关系列表.${characterName}`);
+    const appearMarked = Number(verifiedVariables[appearVariableName]) === 1;
+    if (!characterInserted || !appearMarked) {
+      throw new Error('MVU 写入后的读回验证失败。');
+    }
+  } catch (err: any) {
+    eventListener?.stop();
+    console.error('[CharInfo Viewer] Special NPC auto import failed:', err);
+    if (typeof toastr !== 'undefined') toastr.error(`特殊角色自动注入失败：${err?.message || String(err)}`);
+  }
+}
+
+function applyParsedCharacterData(data: CharacterData, mode: 'strict' | 'loose' | 'builtin', warnings: string[] = []) {
+  const resolvedData = resolveCharacterVisualConfig(data, getVariables({ type: 'chat' }));
+  sheetData.value = resolvedData;
+  specialNpcFallbackActive.value = false;
   parseError.value = null;
   parseMode.value = mode;
   parseWarnings.value = warnings;
-  theme.value = resolveTheme(data);
+  theme.value = resolveTheme(resolvedData);
   applyTheme(theme.value);
+}
+
+function useSpecialNpcFallback() {
+  specialNpcFallbackActive.value = true;
+  nextTick(() => setupParticleEngine());
 }
 
 async function tryLooseParse() {
@@ -681,13 +777,14 @@ function flashImportButton(temp: string, duration = 1200) {
 }
 
 async function onImportMvu() {
-  if (!sheetData.value || importing.value) return;
+  const importData = mvuImportData.value || sheetData.value;
+  if (!importData || importing.value) return;
   importing.value = true;
   closeImportMenu();
 
   try {
     const ok = window.confirm(
-      `确定要将角色 "${sheetData.value.姓名 || 'Unknown'}" 导入到 MVU 变量系统(关系列表)吗？\n如果已存在同名角色，将会覆盖其数据。`,
+      `确定要将角色 "${importData.姓名 || 'Unknown'}" 导入到 MVU 变量系统(关系列表)吗？\n如果已存在同名角色，将会覆盖其数据。`,
     );
     if (!ok) return;
 
@@ -697,7 +794,7 @@ async function onImportMvu() {
     }
 
     importButtonText.value = '⏳';
-    await importToMvuVariables(sheetData.value);
+    await importToMvuVariables(importData);
     flashImportButton('✅', 1600);
   } catch (err: any) {
     console.error('MVU Import Error:', err);
@@ -745,7 +842,7 @@ function onKeydown(ev: KeyboardEvent) {
 }
 
 onMounted(() => {
-  initFromYaml();
+  void initFromYaml();
   document.addEventListener('click', onDocumentClick);
   document.addEventListener('keydown', onKeydown);
 });
@@ -780,6 +877,10 @@ onBeforeUnmount(() => {
   padding: 24px 12px 48px;
   color: #f0f0f0;
   font-family: 'Noto Sans SC', sans-serif;
+}
+
+.viewer-root.special-npc-viewer-root {
+  min-height: 0;
 }
 
 .loading-card,
@@ -837,9 +938,7 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid rgba(246, 217, 130, 0.36);
-  background:
-    radial-gradient(ellipse at 0 0, rgba(246, 217, 130, 0.14), transparent 58%),
-    rgba(15, 22, 36, 0.76);
+  background: radial-gradient(ellipse at 0 0, rgba(246, 217, 130, 0.14), transparent 58%), rgba(15, 22, 36, 0.76);
   color: rgba(255, 252, 242, 0.92);
 }
 
@@ -1163,9 +1262,7 @@ onBeforeUnmount(() => {
   padding: 14px;
   border-radius: 8px;
   border: 1px solid rgba(78, 255, 151, 0.55);
-  background:
-    linear-gradient(180deg, rgba(6, 45, 34, 0.88) 0%, rgba(5, 31, 32, 0.82) 100%),
-    rgba(4, 30, 28, 0.9);
+  background: linear-gradient(180deg, rgba(6, 45, 34, 0.88) 0%, rgba(5, 31, 32, 0.82) 100%), rgba(4, 30, 28, 0.9);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 0 18px rgba(44, 205, 128, 0.18);

@@ -61,9 +61,14 @@ const metaItems = computed(() =>
   flex-shrink: 0;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
+  gap: 8px;
+  margin-bottom: 24px;
   text-align: center;
+}
+
+.special-npc-header:not(.compact) {
+  min-height: var(--special-npc-header-min-height);
+  justify-content: center;
 }
 
 .special-npc-name-rail {
@@ -98,9 +103,7 @@ const metaItems = computed(() =>
     rgba(var(--special-npc-tier-accent-rgb), 0.72),
     transparent
   );
-  filter:
-    drop-shadow(0 0 6px rgba(var(--special-npc-tier-accent-rgb), 0.2))
-    drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 0 6px rgba(var(--special-npc-tier-accent-rgb), 0.2)) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
   opacity: 0.78;
 }
 
@@ -109,9 +112,7 @@ const metaItems = computed(() =>
   background-position: center;
   background-repeat: no-repeat;
   background-size: contain;
-  filter:
-    drop-shadow(0 0 7px rgba(var(--special-npc-tier-accent-rgb), 0.24))
-    drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 0 7px rgba(var(--special-npc-tier-accent-rgb), 0.24)) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
   opacity: 0.78;
 }
 
@@ -199,7 +200,7 @@ const metaItems = computed(() =>
   overflow-wrap: anywhere;
   color: #ffffff;
   font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Noto Sans SC', serif;
-  font-size: 42px;
+  font-size: clamp(30px, 4.2cqw, 38px);
   font-weight: 700;
   line-height: 1.12;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
@@ -207,7 +208,6 @@ const metaItems = computed(() =>
 
 .special-npc-header.ornate {
   gap: 5px;
-  margin-bottom: 38px;
 }
 
 .special-npc-header.ornate .special-npc-level-tier {
@@ -222,10 +222,10 @@ const metaItems = computed(() =>
 .special-npc-header.ornate .special-npc-name {
   max-width: 100%;
   overflow: visible;
-  white-space: nowrap;
+  white-space: normal;
   color: #fffdf5;
-  font-size: clamp(30px, 5.3cqw, 42px);
   letter-spacing: 0;
+  text-wrap: balance;
   text-shadow:
     0 2px 0 rgba(12, 22, 34, 0.45),
     0 3px 12px rgba(0, 0, 0, 0.68),
@@ -236,7 +236,7 @@ const metaItems = computed(() =>
   max-width: 100%;
   color: rgba(255, 255, 246, 0.95);
   font-weight: 700;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .special-npc-subtitle {

@@ -2,11 +2,9 @@ import type { CharacterData } from '../types';
 import { getSmartArray, normalizeDisplayText, parseAttributeValue } from './common';
 import { normalizeCharacterDataKeys } from './yamlParser';
 
-type VariableScope = { type: 'message'; message_id: 'latest' };
+export type MessageVariableScope = { type: 'message'; message_id: number | 'latest' };
 
 type TavernApiLike = {
-  getVariables?: (scope: VariableScope) => Promise<Record<string, any>>;
-  insertOrAssignVariables?: (payload: Record<string, any>, scope: VariableScope) => Promise<void>;
   getOrCreateChatWorldbook?: (chat: 'current', desiredName: string) => Promise<string>;
   createWorldbookEntries?: (bookName: string, entries: Array<Record<string, any>>) => Promise<unknown>;
   getChatWorldbookName?: (chat: 'current') => Promise<string | null>;
@@ -204,16 +202,9 @@ function statusEffectsToMap(input: unknown): Record<string, Record<string, any>>
   return map;
 }
 
-export async function importToMvuVariables(data: CharacterData): Promise<void> {
-  const api = getApi();
-  if (typeof api.getVariables !== 'function' || typeof api.insertOrAssignVariables !== 'function') {
-    throw new Error('未检测到 TavernHelper API (getVariables / insertOrAssignVariables)。');
-  }
-
+export function mergeCharacterIntoMvuData(data: CharacterData, currentVars: Mvu.MvuData): string {
   const normalizedData = normalizeCharacterDataKeys(data);
   const charName = normalizedData.姓名 || 'Unknown';
-  const targetScope: VariableScope = { type: 'message', message_id: 'latest' };
-
   const backpack = mergeNamedMaps(
     arrayToMap(normalizedData.背包, 'backpack'),
     arrayToMap(normalizedData.道具, 'backpack'),
@@ -263,14 +254,6 @@ export async function importToMvuVariables(data: CharacterData): Promise<void> {
     背景故事: normalizedData.背景故事 || '',
   };
 
-  let currentVars: Record<string, any> | null = null;
-
-  try {
-    currentVars = await api.getVariables(targetScope);
-  } catch {
-    currentVars = null;
-  }
-
   const keepIfPresent = (val: unknown) => (val === undefined || val === null ? undefined : val);
   const currentCharacter = currentVars?.stat_data?.关系列表?.[charName];
 
@@ -280,11 +263,37 @@ export async function importToMvuVariables(data: CharacterData): Promise<void> {
   if (preservedFavor !== undefined) (mvuData as any).好感度 = preservedFavor;
   if (preservedHeart !== undefined) (mvuData as any).心里话 = preservedHeart;
 
-  const updatePayload: Record<string, any> = {
-    stat_data: { 关系列表: { [charName]: mvuData } },
-  };
+  currentVars.stat_data ??= {};
+  currentVars.stat_data.关系列表 ??= {};
+  currentVars.stat_data.关系列表[charName] = mvuData;
 
-  await api.insertOrAssignVariables(updatePayload, targetScope);
+  return charName;
+}
+
+export async function importToMvuVariables(
+  data: CharacterData,
+  targetScope: MessageVariableScope = { type: 'message', message_id: 'latest' },
+): Promise<void> {
+  await waitGlobalInitialized('Mvu');
+  const currentVars = Mvu.getMvuData(targetScope);
+  mergeCharacterIntoMvuData(data, currentVars);
+
+  await Mvu.replaceMvuData(currentVars, targetScope);
+}
+
+export function mergeSpecialNpcIntoMvuData(
+  data: CharacterData,
+  appearVariableName: string,
+  characterName: string,
+  currentVariables: Mvu.MvuData,
+  showSuccessToast = true,
+): 'imported' | 'already_imported' {
+  if (Number(currentVariables[appearVariableName]) === 1) return 'already_imported';
+
+  mergeCharacterIntoMvuData(data, currentVariables);
+  if (showSuccessToast) toastr.success(`${characterName} 已插入变量`);
+  currentVariables[appearVariableName] = 1;
+  return 'imported';
 }
 
 function formatWorldbookContent(originalYaml: string): string {
