@@ -50,7 +50,7 @@ function splitSmartList(input: string): string[] {
   const normalizeListItem = (value: string) =>
     normalizeDisplayText(
       normalizeDisplayText(value)
-        .replace(/^[\[(]+|[\])]$/g, '')
+        .replace(/^(?:\[|\()+|(?:\]|\))+$/g, '')
         .trim(),
     );
 
