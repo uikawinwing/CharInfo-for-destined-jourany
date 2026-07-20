@@ -290,6 +290,299 @@ function buildFriendlyYamlError(
   };
 }
 
+const BLOCK_SCALAR_KEY_PATTERN = /^(\s*)(-\s*)?([^\s：:][^：:]{0,40}?)\s*[：:]\s*([|>][+-]?\d*)\s*$/;
+const MAPPING_LINE_PATTERN = /^(\s*)(-\s*)?([^\s：:][^：:]{0,40}?)\s*[：:]\s*(.*)$/;
+
+const NAMED_LIST_COLLECTION_KEYS = new Set([
+  '技能',
+  '装备',
+  '道具',
+  '特殊物品',
+  '物品',
+  '要素',
+  '权能',
+  '法则',
+  '状态效果',
+]);
+
+const NAMED_LIST_FIELD_KEYS = new Set([
+  '名称',
+  '品质',
+  '类型',
+  '分类',
+  '消耗',
+  '标签',
+  '效果',
+  '描述',
+  '位置',
+  '被动效果',
+  '主动效果',
+  '层数',
+  '剩余时间',
+  '来源',
+]);
+
+const MULTILINE_TEXT_KEYS = new Set(['性格', '外貌特质', '衣物装饰', '背景故事', '描述', '效果']);
+
+type MappingLine = {
+  indent: number;
+  dash: string;
+  key: string;
+  value: string;
+};
+
+function matchMappingLine(line: string): MappingLine | null {
+  const match = line.match(MAPPING_LINE_PATTERN);
+  if (!match) return null;
+
+  return {
+    indent: match[1].length,
+    dash: match[2] ?? '',
+    key: normalizeKey(match[3].trim()),
+    value: match[4] ?? '',
+  };
+}
+
+function lineIndent(line: string): number {
+  return line.match(/^ */)?.[0].length ?? 0;
+}
+
+function isKeyLikeLine(line: string): boolean {
+  const match = line.match(/^\s*(?:-\s*)?([^\s：:][^：:]{0,24}?)\s*[：:](?:\s|$)/);
+  if (!match) return false;
+  return !/[。，！？；、,.!?]/.test(match[1]);
+}
+
+/**
+ * 修补 "键: |" 块标量下缺失的内容缩进。
+ * 仅在块内容行的缩进不大于键所在缩进（即原文必然解析失败）时才改写，
+ * 遇到下一个 "键: 值" 形态的行即停止，避免吞掉后续字段。
+ */
+export function repairBlockScalarIndentation(yamlStr: string): { text: string; changed: boolean } {
+  const { source } = unwrapCharacterInfoWrapper(yamlStr);
+  const lines = source.replace(/\r\n/g, '\n').split('\n');
+  let changed = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(BLOCK_SCALAR_KEY_PATTERN);
+    if (!match) continue;
+
+    const effectiveIndent = match[1].length + (match[2]?.length ?? 0);
+    const targetIndent = effectiveIndent + 2;
+
+    let j = i + 1;
+    while (j < lines.length && !lines[j].trim()) j++;
+    if (j >= lines.length) continue;
+
+    const firstIndent = lines[j].match(/^ */)?.[0].length ?? 0;
+    if (firstIndent > effectiveIndent) continue; // 块内容缩进正常，不需要修补
+    if (isKeyLikeLine(lines[j])) continue; // 空块标量后紧跟下一个键，属于合法 YAML
+
+    const delta = targetIndent - firstIndent;
+    while (j < lines.length) {
+      const line = lines[j];
+      if (!line.trim()) {
+        j++;
+        continue;
+      }
+      const indent = line.match(/^ */)?.[0].length ?? 0;
+      if (indent > effectiveIndent) break;
+      if (isKeyLikeLine(line)) break;
+      lines[j] = ' '.repeat(Math.max(targetIndent, indent + delta)) + line.trimStart();
+      changed = true;
+      j++;
+    }
+  }
+
+  return { text: lines.join('\n'), changed };
+}
+
+function repairNamedListIndentation(lines: string[]): boolean {
+  let changed = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const collection = matchMappingLine(lines[i]);
+    if (
+      !collection ||
+      collection.dash ||
+      collection.value.trim() ||
+      !NAMED_LIST_COLLECTION_KEYS.has(collection.key)
+    ) {
+      continue;
+    }
+
+    const itemIndent = collection.indent + 2;
+    const fieldIndent = itemIndent + 2;
+    let blockEnd = lines.length;
+
+    for (let j = i + 1; j < lines.length; j++) {
+      if (!lines[j].trim()) continue;
+
+      const mapped = matchMappingLine(lines[j]);
+      if (!mapped) continue;
+      const isCollectionBoundary =
+        !mapped.dash && mapped.indent <= collection.indent && !NAMED_LIST_FIELD_KEYS.has(mapped.key);
+
+      if (isCollectionBoundary) {
+        blockEnd = j;
+        break;
+      }
+    }
+
+    const itemIndexes: number[] = [];
+    for (let j = i + 1; j < blockEnd; j++) {
+      const mapped = matchMappingLine(lines[j]);
+      if (
+        mapped?.dash &&
+        mapped.key === '名称' &&
+        mapped.indent >= Math.max(0, itemIndent - 2) &&
+        mapped.indent <= itemIndent + 2
+      ) {
+        itemIndexes.push(j);
+      }
+    }
+
+    itemIndexes.forEach((itemIndex, itemPosition) => {
+      const itemEnd = itemIndexes[itemPosition + 1] ?? blockEnd;
+      const item = matchMappingLine(lines[itemIndex]);
+      if (!item) return;
+
+      const delta = itemIndent - item.indent;
+      if (delta !== 0) {
+        for (let j = itemIndex; j < itemEnd; j++) {
+          if (!lines[j].trim()) continue;
+          lines[j] = ' '.repeat(Math.max(0, lineIndent(lines[j]) + delta)) + lines[j].trimStart();
+        }
+        changed = true;
+      }
+
+      let nestedParentIndent: number | null = null;
+      for (let j = itemIndex + 1; j < itemEnd; j++) {
+        const mapped = matchMappingLine(lines[j]);
+        if (!mapped || mapped.dash) continue;
+
+        if (nestedParentIndent !== null && mapped.indent > nestedParentIndent) continue;
+        nestedParentIndent = null;
+
+        if (NAMED_LIST_FIELD_KEYS.has(mapped.key)) {
+          if (mapped.indent !== fieldIndent) {
+            lines[j] = ' '.repeat(fieldIndent) + lines[j].trimStart();
+            changed = true;
+          }
+          if (!mapped.value.trim()) nestedParentIndent = fieldIndent;
+        } else if (mapped.indent === fieldIndent && !mapped.value.trim()) {
+          nestedParentIndent = fieldIndent;
+        }
+      }
+    });
+
+    i = blockEnd - 1;
+  }
+
+  return changed;
+}
+
+function promoteOverflowingTextToBlockScalar(lines: string[]): boolean {
+  let changed = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const mapped = matchMappingLine(lines[i]);
+    if (!mapped || !MULTILINE_TEXT_KEYS.has(mapped.key)) continue;
+
+    const value = mapped.value.trim();
+    if (!value || /^[|>]/.test(value) || /^["'[{]/.test(value)) continue;
+
+    const effectiveIndent = mapped.indent + mapped.dash.length;
+    let firstFollowingLine = i + 1;
+    while (firstFollowingLine < lines.length && !lines[firstFollowingLine].trim()) firstFollowingLine++;
+    if (firstFollowingLine >= lines.length) continue;
+
+    const firstLine = lines[firstFollowingLine];
+    if (lineIndent(firstLine) > effectiveIndent || isKeyLikeLine(firstLine) || /^\s*(?:---|\.\.\.)\s*$/.test(firstLine)) {
+      continue;
+    }
+
+    const originalKey = lines[i].match(MAPPING_LINE_PATTERN)?.[3]?.trim() ?? mapped.key;
+    const prefix = `${' '.repeat(mapped.indent)}${mapped.dash}${originalKey}:`;
+    const targetIndent = effectiveIndent + 2;
+    lines[i] = `${prefix} |`;
+    lines.splice(i + 1, 0, `${' '.repeat(targetIndent)}${value}`);
+    changed = true;
+
+    let j = i + 2;
+    while (j < lines.length) {
+      const line = lines[j];
+      if (!line.trim()) {
+        j++;
+        continue;
+      }
+
+      const indent = lineIndent(line);
+      if ((indent <= effectiveIndent && isKeyLikeLine(line)) || /^\s*(?:---|\.\.\.)\s*$/.test(line)) break;
+
+      lines[j] = ' '.repeat(Math.max(targetIndent, indent)) + line.trimStart();
+      j++;
+    }
+
+    i = j - 1;
+  }
+
+  return changed;
+}
+
+function quoteValuesWithExtraMappingColon(lines: string[]): boolean {
+  let changed = false;
+  let blockScalarIndent: number | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+
+    const indent = lineIndent(lines[i]);
+    if (blockScalarIndent !== null) {
+      if (indent > blockScalarIndent) continue;
+      blockScalarIndent = null;
+    }
+
+    const mapped = matchMappingLine(lines[i]);
+    if (!mapped) continue;
+
+    const value = mapped.value.trim();
+    if (/^[|>][+-]?\d*$/.test(value)) {
+      blockScalarIndent = mapped.indent + mapped.dash.length;
+      continue;
+    }
+    if (!value || ['"', "'", '|', '>', '[', '{'].some(prefix => value.startsWith(prefix)) || !/:\s+/.test(value)) {
+      continue;
+    }
+
+    const originalKey = lines[i].match(MAPPING_LINE_PATTERN)?.[3]?.trim() ?? mapped.key;
+    lines[i] = `${' '.repeat(mapped.indent)}${mapped.dash}${originalKey}: ${JSON.stringify(value)}`;
+    changed = true;
+  }
+
+  return changed;
+}
+
+/**
+ * 修补 LLM 常见、且能从局部结构可靠判断的 YAML 错误。
+ * 这里只生成候选文本；调用方仍须重新严格解析，成功后才采用。
+ */
+export function repairCommonYamlStructure(yamlStr: string): { text: string; changed: boolean } {
+  const { source } = unwrapCharacterInfoWrapper(yamlStr);
+  const lines = source.replace(/\r\n/g, '\n').replace(/\t/g, '  ').split('\n');
+  let changed = false;
+
+  changed = repairNamedListIndentation(lines) || changed;
+  changed = promoteOverflowingTextToBlockScalar(lines) || changed;
+  changed = quoteValuesWithExtraMappingColon(lines) || changed;
+
+  const blockScalarRepair = repairBlockScalarIndentation(lines.join('\n'));
+  return {
+    text: blockScalarRepair.text,
+    changed: changed || blockScalarRepair.changed,
+  };
+}
+
 const LOOSE_TOP_KEYS = [
   '姓名',
   '等级',
@@ -399,6 +692,22 @@ function parseLooseKVBlock(lines: string[], keys: readonly string[]): Record<str
 }
 
 export function parseCharacterYamlLoose(yamlText: string): ParseResult {
+  // 先修补能可靠判断的常见格式错误；严格解析成功后才采用，避免破坏原文语义
+  const repaired = repairCommonYamlStructure(yamlText);
+  if (repaired.changed) {
+    const strictRetry = parseCharacterYaml(repaired.text);
+    if (strictRetry.success) {
+      return {
+        success: true,
+        data: strictRetry.data,
+        mode: 'loose',
+        warnings: [
+          '三角老师帮你修好了常见的列表或多行文本格式问题，内容应该是完整的～不过导入聊天世界书时保存的仍是原文，建议顺手把原文格式也改正哦。',
+        ],
+      };
+    }
+  }
+
   const prepared = prepareYaml(yamlText);
   const sections = extractLooseSections(prepared.source);
   const data: CharacterData = {};

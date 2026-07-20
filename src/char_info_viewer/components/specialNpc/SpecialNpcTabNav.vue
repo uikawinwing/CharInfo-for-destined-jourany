@@ -65,9 +65,12 @@ const detailTabs = computed(() => props.tabs.filter(tab => tab.key !== 'overview
   display: flex;
   flex-shrink: 0;
   align-items: stretch;
+  align-self: center;
+  width: fit-content;
+  max-width: 100%;
+  justify-content: center;
   min-height: var(--special-npc-tabs-height);
-  margin-top: 0;
-  margin-bottom: 0;
+  margin: 0 auto;
   overflow: hidden;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(20, 22, 30, 0.2) 0%, rgba(20, 22, 30, 0.96) 35%);
@@ -75,10 +78,10 @@ const detailTabs = computed(() => props.tabs.filter(tab => tab.key !== 'overview
 
 .special-npc-tab-scroll {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  gap: 4px;
   min-width: 0;
-  justify-content: center;
-  gap: 20px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -89,7 +92,10 @@ const detailTabs = computed(() => props.tabs.filter(tab => tab.key !== 'overview
 
 .special-npc-tab-button {
   position: relative;
+  display: flex;
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   padding: 6px 8px;
   border: none;
@@ -99,12 +105,22 @@ const detailTabs = computed(() => props.tabs.filter(tab => tab.key !== 'overview
   font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   font-size: 15px;
   font-weight: 500;
+  text-align: center;
   white-space: nowrap;
   transition: color 0.2s ease;
 }
 
-.special-npc-tab-button:hover,
-.special-npc-tab-button.active {
+.special-npc-tab-scroll .special-npc-tab-button {
+  flex: 0 0 auto;
+  justify-content: center;
+  width: auto;
+  min-width: 56px;
+  padding-right: 12px;
+  padding-left: 12px;
+}
+
+.special-npc-tab-button:hover:not(:disabled),
+.special-npc-tab-button.active:not(:disabled) {
   color: var(--special-npc-race-accent);
 }
 
@@ -120,6 +136,8 @@ const detailTabs = computed(() => props.tabs.filter(tab => tab.key !== 'overview
 
 .special-npc-home-button {
   z-index: 2;
+  flex: 0 0 auto;
+  min-width: 56px;
   padding-right: 12px;
   padding-left: 12px;
 }
@@ -127,6 +145,7 @@ const detailTabs = computed(() => props.tabs.filter(tab => tab.key !== 'overview
 .special-npc-nav-save-button {
   position: relative;
   flex: 0 0 auto;
+  min-width: 56px;
   min-height: 44px;
   padding: 6px 12px;
   border: none;
@@ -182,8 +201,8 @@ const detailTabs = computed(() => props.tabs.filter(tab => tab.key !== 'overview
   text-shadow: none;
 }
 
-:global(.special-npc-theme-anastasia .special-npc-tab-button:hover),
-:global(.special-npc-theme-anastasia .special-npc-tab-button.active),
+:global(.special-npc-theme-anastasia .special-npc-tab-button:hover:not(:disabled)),
+:global(.special-npc-theme-anastasia .special-npc-tab-button.active:not(:disabled)),
 :global(.special-npc-theme-anastasia .special-npc-nav-save-button:hover:not(:disabled)) {
   color: #0a2d4e;
 }
@@ -196,15 +215,28 @@ const detailTabs = computed(() => props.tabs.filter(tab => tab.key !== 'overview
 
 @media (max-width: 640px) {
   .special-npc-tabs {
+    align-self: stretch;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: none;
     min-height: 48px;
   }
 
   .special-npc-tab-scroll {
+    display: flex;
+    flex: 1 1 auto;
     justify-content: flex-start;
     gap: 4px;
     padding: 0 6px;
     overflow-x: auto;
     mask-image: linear-gradient(90deg, transparent, #000 8px, #000 calc(100% - 8px), transparent);
+  }
+
+  .special-npc-tab-scroll .special-npc-tab-button {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 58px;
+    font-size: 15px;
   }
 
   .special-npc-tab-button,
